@@ -1,0 +1,4 @@
+[submodule "lib/ccan"]
+	path = lib/ccan
+	url = git://git.ozlabs.org/~ccan/ccan
+	ignore = all
