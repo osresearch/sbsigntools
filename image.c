@@ -173,10 +173,11 @@ static void set_region_from_range(struct region *region, void *start, void *end)
 int image_find_regions(struct image *image)
 {
 	struct region *regions;
+	int i, gap_warn;
 	uint32_t align;
 	size_t bytes;
-	int i;
 
+	gap_warn = 0;
 	align = *(uint32_t *)image->aouthdr->FileAlignment;
 
 	/* now we know where the checksum and cert table data is, we can
@@ -238,7 +239,19 @@ int image_find_regions(struct image *image)
 		regions[i + 3].name = talloc_strndup(image->checksum_regions,
 					image->scnhdr[i].s_name, 8);
 		bytes += regions[i + 3].size;
+
+		if (regions[i+2].data + regions[i+2].size
+				!= regions[i+3].data) {
+			fprintf(stderr, "warning: gap in section table between "
+					"%s and %s\n",
+					regions[i+2].name, regions[i+3].name);
+			gap_warn = 1;
+		}
 	}
+
+	if (gap_warn)
+		fprintf(stderr, "gaps in the section table may result in "
+				"different checksums\n");
 
 	if (bytes != image->size) {
 		fprintf(stderr, "warning: data remaining[%zd vs %zd]: gaps "
