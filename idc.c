@@ -148,7 +148,7 @@ int IDC_set(PKCS7 *p7, PKCS7_SIGNER_INFO *si, struct image *image)
 
 	idc->data->type = OBJ_nid2obj(peid_nid);
 	idc->data->value = ASN1_TYPE_new();
-	type_set_sequence(NULL, idc->data->value, peid, &IDC_PEID_it);
+	type_set_sequence(image, idc->data->value, peid, &IDC_PEID_it);
 
         idc->digest->alg->parameter = ASN1_TYPE_new();
         idc->digest->alg->algorithm = OBJ_nid2obj(NID_sha256);
@@ -156,7 +156,7 @@ int IDC_set(PKCS7 *p7, PKCS7_SIGNER_INFO *si, struct image *image)
         ASN1_OCTET_STRING_set(idc->digest->digest, sha, sizeof(sha));
 
 	len = i2d_IDC(idc, NULL);
-	tmp = buf = talloc_array(NULL, uint8_t, len);
+	tmp = buf = talloc_array(image, uint8_t, len);
 	i2d_IDC(idc, &tmp);
 
 	/* Add the contentType authenticated attribute */
