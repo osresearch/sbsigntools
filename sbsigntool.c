@@ -58,7 +58,16 @@ static struct option options[] = {
 
 static void usage(const char *progname)
 {
-	fprintf(stderr, "usage: %s <efi-boot-image>\n", progname);
+	fprintf(stderr,
+		"usage: %s --key <keyfile> --cert <certfile> "
+			"<efi-boot-image>\n"
+		"options:\n"
+		"\t--key <keyfile>    signing key (PEM-encoded RSA "
+						"private key)\n"
+		"\t--cert <certfile>  certificate (x509 certificate)\n"
+		"\t--output <file>    write signed data to <file>\n"
+		"\t                    (default <efi-boot-image>.signed)\n"
+			, progname);
 }
 
 static void set_default_outfilename(struct sign_context *ctx)
