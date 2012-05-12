@@ -11,7 +11,9 @@ libs = -lbfd -lcrypto
 ccan_objs = lib/ccan/libccan.a
 ccan_includes = -I./lib/ccan
 
-all: sbsign sbverify
+tools = sbsign sbverify
+
+all: $(tools)
 
 sbsign: $(sbsign_objs) $(ccan_objs)
 	$(LINK.o) -o $@ $^ $(libs)
@@ -27,5 +29,5 @@ $(ccan_objs):
 	cd $(@D) && $(MAKE)
 
 clean:
-	rm -f sbsign
+	rm -f $(tools)
 	rm -f *.o
