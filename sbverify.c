@@ -46,6 +46,12 @@ int main(int argc, char **argv)
 	image = image_load(argv[1]);
 	image_pecoff_parse(image);
 
+	if (!image->data_dir_sigtable->addr
+			|| !image->data_dir_sigtable->size) {
+		fprintf(stderr, "No signature table present\n");
+		return EXIT_FAILURE;
+	}
+
 	header = image->buf + image->data_dir_sigtable->addr;
 
 	ERR_load_crypto_strings();
