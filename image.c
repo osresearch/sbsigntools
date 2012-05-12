@@ -351,7 +351,7 @@ int image_write_signed(struct image *image, const char *filename)
 	image->data_dir_sigtable->addr = image->size;
 	image->data_dir_sigtable->size = len + padlen;
 
-	fd = open(filename, O_WRONLY | O_CREAT, 0644);
+	fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0) {
 		perror("open");
 		return -1;
