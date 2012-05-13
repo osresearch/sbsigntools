@@ -271,7 +271,7 @@ int image_find_regions(struct image *image)
 		fprintf(stderr, "gaps in the section table may result in "
 				"different checksums\n");
 
-	if (bytes != image->size) {
+	if (bytes + image->cert_table_size != image->size) {
 		fprintf(stderr, "warning: data remaining[%zd vs %zd]: gaps "
 				"between PE/COFF sections?\n",
 				bytes, image->size);
