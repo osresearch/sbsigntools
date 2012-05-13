@@ -5,7 +5,7 @@ CFLAGS = -Wall -Werror -Wextra -ggdb --std=c99
 LDFLAGS = -fwhole-program
 
 sbsign_objs = sbsign.o idc.o image.o
-sbverify_objs = sbverify.o image.o
+sbverify_objs = sbverify.o idc.o image.o
 libs = -lbfd -lcrypto
 
 ccan_objs = lib/ccan/libccan.a

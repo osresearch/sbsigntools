@@ -17,6 +17,7 @@
  * USA.
  */
 #include <stdint.h>
+#include <string.h>
 #include <openssl/asn1t.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
@@ -132,6 +133,17 @@ const char obsolete[] = {
 	0x00, 0x65, 0x00, 0x3e, 0x00, 0x3e, 0x00, 0x3e
 };
 
+const char *sha256_str(const uint8_t *hash)
+{
+	static char s[SHA256_DIGEST_LENGTH * 2 + 1];
+	int i;
+
+	for (i = 0; i < SHA256_DIGEST_LENGTH; i++)
+		snprintf(s + i * 2, 3, "%02x", hash[i]);
+
+	return s;
+}
+
 int IDC_set(PKCS7 *p7, PKCS7_SIGNER_INFO *si, struct image *image)
 {
 	uint8_t *buf, *tmp, sha[SHA256_DIGEST_LENGTH];
@@ -205,4 +217,40 @@ int IDC_set(PKCS7 *p7, PKCS7_SIGNER_INFO *si, struct image *image)
 	return 0;
 }
 
+int IDC_check_hash(struct image *image, PKCS7 *p7)
+{
+	unsigned char sha[SHA256_DIGEST_LENGTH];
+	const unsigned char *buf;
+	ASN1_STRING *str;
+	IDC *idc;
 
+	image_hash_sha256(image, sha);
+
+	/* extract the idc from the signed PKCS7 'other' data */
+	str = p7->d.sign->contents->d.other->value.asn1_string;
+	buf = ASN1_STRING_data(str);
+	idc = d2i_IDC(NULL, &buf, ASN1_STRING_length(str));
+
+	/* check hash algorithm sanity */
+	if (OBJ_cmp(idc->digest->alg->algorithm, OBJ_nid2obj(NID_sha256))) {
+		fprintf(stderr, "Invalid algorithm type\n");
+		return -1;
+	}
+
+	str = idc->digest->digest;
+	if (ASN1_STRING_length(str) != sizeof(sha)) {
+		fprintf(stderr, "Invalid algorithm length\n");
+		return -1;
+	}
+
+	/* check hash against the one we calculated from the image */
+	buf = ASN1_STRING_data(str);
+	if (memcmp(buf, sha, sizeof(sha))) {
+		fprintf(stderr, "Hash doesn't match image\n");
+		fprintf(stderr, " got:       %s\n", sha256_str(buf));
+		fprintf(stderr, " expecting: %s\n", sha256_str(sha));
+		return -1;
+	}
+
+	return 0;
+}

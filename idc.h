@@ -24,6 +24,7 @@
 #include <openssl/pkcs7.h>
 
 int IDC_set(PKCS7 *p7, PKCS7_SIGNER_INFO *si, struct image *image);
+int IDC_check_hash(struct image *image, PKCS7 *p7);
 
 #endif /* IDC_H */
 

@@ -20,23 +20,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <ccan/talloc/talloc.h>
+
 #include "image.h"
+#include "idc.h"
 
 #include <openssl/err.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/pkcs7.h>
 
+enum verify_status {
+	VERIFY_FAIL = 0,
+	VERIFY_OK = 1,
+};
 
 int main(int argc, char **argv)
 {
 	struct cert_table_header *header;
+	enum verify_status status;
 	struct image *image;
 	uint8_t *idcbuf, tmp;
 	const uint8_t *buf;
 	int idclen, rc;
 	BIO *idcbio;
 	PKCS7 *p7;
+
+	status = VERIFY_FAIL;
 
 	if (argc != 2) {
 		fprintf(stderr, "usage: %s <boot-image>\n", argv[0]);
@@ -45,11 +55,12 @@ int main(int argc, char **argv)
 
 	image = image_load(argv[1]);
 	image_pecoff_parse(image);
+	image_find_regions(image);
 
 	if (!image->data_dir_sigtable->addr
 			|| !image->data_dir_sigtable->size) {
 		fprintf(stderr, "No signature table present\n");
-		return EXIT_FAILURE;
+		goto out;
 	}
 
 	header = image->buf + image->data_dir_sigtable->addr;
@@ -58,6 +69,10 @@ int main(int argc, char **argv)
 	OpenSSL_add_all_digests();
 	buf = (void *)(header + 1);
 	p7 = d2i_PKCS7(NULL, &buf, header->size);
+
+	rc = IDC_check_hash(image, p7);
+	if (rc)
+		goto out;
 
 	idcbuf = p7->d.sign->contents->d.other->value.asn1_string->data;
 
@@ -81,9 +96,17 @@ int main(int argc, char **argv)
 	if (!rc) {
 		printf("PKCS7 verification failed\n");
 		ERR_print_errors_fp(stderr);
-	} else {
-		printf("Signature verification OK\n");
+		goto out;
 	}
 
-	return rc ? EXIT_SUCCESS : EXIT_FAILURE;
+	status = VERIFY_OK;
+
+out:
+	talloc_free(image);
+	if (status == VERIFY_OK)
+		printf("Signature verification OK\n");
+	else
+		printf("Signature verification failed\n");
+
+	return status == VERIFY_OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
