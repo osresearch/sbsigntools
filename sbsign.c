@@ -154,7 +154,7 @@ int main(int argc, char **argv)
 	BIO *cert_bio = BIO_new_file(certfilename, "r");
 	X509 *cert = PEM_read_bio_X509(cert_bio, NULL, NULL, NULL);
 
-	if (!pkey) {
+	if (!cert) {
 		fprintf(stderr, "error reading certificate %s\n", certfilename);
 		return EXIT_FAILURE;
 	}
