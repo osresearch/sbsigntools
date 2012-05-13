@@ -260,9 +260,19 @@ int image_find_regions(struct image *image)
 
 		if (regions[i+2].data + regions[i+2].size
 				!= regions[i+3].data) {
-			fprintf(stderr, "warning: gap in section table between "
-					"%s and %s\n",
-					regions[i+2].name, regions[i+3].name);
+			fprintf(stderr, "warning: gap in section table:\n");
+			fprintf(stderr, "    %-8s: 0x%08lx - 0x%08lx,\n",
+					regions[i+2].name,
+					regions[i+2].data - image->buf,
+					regions[i+2].data +
+						regions[i+2].size - image->buf);
+			fprintf(stderr, "    %-8s: 0x%08lx - 0x%08lx,\n",
+					regions[i+3].name,
+					regions[i+3].data - image->buf,
+					regions[i+3].data +
+						regions[i+3].size - image->buf);
+
+
 			gap_warn = 1;
 		}
 	}
