@@ -23,8 +23,11 @@
 
 #include <openssl/pkcs7.h>
 
+struct idc;
+
 int IDC_set(PKCS7 *p7, PKCS7_SIGNER_INFO *si, struct image *image);
-int IDC_check_hash(struct image *image, PKCS7 *p7);
+struct idc *IDC_get(PKCS7 *p7, BIO *bio);
+int IDC_check_hash(struct idc *idc, struct image *image);
 
 #endif /* IDC_H */
 

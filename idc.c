@@ -217,19 +217,47 @@ int IDC_set(PKCS7 *p7, PKCS7_SIGNER_INFO *si, struct image *image)
 	return 0;
 }
 
-int IDC_check_hash(struct image *image, PKCS7 *p7)
+struct idc *IDC_get(PKCS7 *p7, BIO *bio)
+{
+	const unsigned char *buf, *idcbuf;
+	ASN1_STRING *str;
+	IDC *idc;
+
+	/* extract the idc from the signed PKCS7 'other' data */
+	str = p7->d.sign->contents->d.other->value.asn1_string;
+	idcbuf = buf = ASN1_STRING_data(str);
+	idc = d2i_IDC(NULL, &buf, ASN1_STRING_length(str));
+
+	/* If we were passed a BIO, write the idc data, minus type and length,
+	 * to the BIO. This can be used to PKCS7_verify the idc */
+	if (bio) {
+		uint32_t idclen;
+		uint8_t tmp;
+
+		tmp = idcbuf[1];
+
+		if (!(tmp & 0x80)) {
+			idclen = tmp & 0x7f;
+			idcbuf += 2;
+		} else if ((tmp & 0x82) == 0x82) {
+			idclen = (idcbuf[2] << 8) +
+				 idcbuf[3];
+			idcbuf += 4;
+		}
+
+		BIO_write(bio, idcbuf, idclen);
+	}
+
+	return idc;
+}
+
+int IDC_check_hash(struct idc *idc, struct image *image)
 {
 	unsigned char sha[SHA256_DIGEST_LENGTH];
 	const unsigned char *buf;
 	ASN1_STRING *str;
-	IDC *idc;
 
 	image_hash_sha256(image, sha);
-
-	/* extract the idc from the signed PKCS7 'other' data */
-	str = p7->d.sign->contents->d.other->value.asn1_string;
-	buf = ASN1_STRING_data(str);
-	idc = d2i_IDC(NULL, &buf, ASN1_STRING_length(str));
 
 	/* check hash algorithm sanity */
 	if (OBJ_cmp(idc->digest->alg->algorithm, OBJ_nid2obj(NID_sha256))) {
