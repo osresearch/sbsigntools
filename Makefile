@@ -12,6 +12,13 @@ ccan_objs = lib/ccan/libccan.a
 ccan_includes = -I./lib/ccan
 libs = -lbfd -lcrypto
 
+# install paths
+DESTDIR ?=
+prefix ?= /usr
+bindir ?= ${prefix}/bin
+install_dirs = install -m 755 -d $(DESTDIR)$(bindir)
+install_bin = install -m 755 -t $(DESTDIR)$(bindir)
+
 tools = sbsign sbverify
 
 all: $(tools)
@@ -28,6 +35,11 @@ gen-keyfiles: libs = -luuid
 
 $(ccan_objs):
 	cd $(@D) && $(MAKE)
+
+install: $(tools)
+	$(install_dirs)
+	$(install_bin) $(tools)
+.PHONY: install
 
 clean:
 	rm -f $(tools)
