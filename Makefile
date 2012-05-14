@@ -1,15 +1,16 @@
 
+# compile options
 CC = gcc
 CPPFLAGS = -I. $(ccan_includes)
 CFLAGS = -Wall -Werror -Wextra -ggdb --std=c99
 LDFLAGS = -fwhole-program
 
+# build configuration
 sbsign_objs = sbsign.o idc.o image.o
 sbverify_objs = sbverify.o idc.o image.o
-libs = -lbfd -lcrypto
-
 ccan_objs = lib/ccan/libccan.a
 ccan_includes = -I./lib/ccan
+libs = -lbfd -lcrypto
 
 tools = sbsign sbverify
 
