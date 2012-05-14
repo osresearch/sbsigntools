@@ -16,9 +16,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
  * USA.
  */
+#define _GNU_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <getopt.h>
 
 #include <ccan/talloc/talloc.h>
 
@@ -29,31 +32,118 @@
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/pkcs7.h>
+#include <openssl/pem.h>
+#include <openssl/x509v3.h>
 
 enum verify_status {
 	VERIFY_FAIL = 0,
 	VERIFY_OK = 1,
 };
 
+static struct option options[] = {
+	{ "cert", required_argument, NULL, 'c' },
+	{ "no-verify", no_argument, NULL, 'n' },
+	{ NULL, 0, NULL, 0 },
+};
+
+static void usage(const char *progname)
+{
+	fprintf(stderr,
+		"usage: %s --cert <certfile> <efi-boot-image>\n"
+		"options:\n"
+		"\t--cert <certfile>  certificate (x509 certificate)\n"
+		"\t--no-verify        don't perform certificate verification\n",
+			progname);
+}
+
+int load_cert(X509_STORE *certs, const char *filename)
+{
+	X509 *cert;
+	BIO *bio;
+
+	bio = NULL;
+	cert = NULL;
+
+	bio = BIO_new_file(filename, "r");
+	if (!bio) {
+		fprintf(stderr, "Couldn't open file %s\n", filename);
+		goto err;
+	}
+
+	cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
+	if (!cert) {
+		fprintf(stderr, "Couldn't read certificate file %s\n",
+				filename);
+		goto err;
+	}
+
+	X509_STORE_add_cert(certs, cert);
+	return 0;
+
+err:
+	ERR_print_errors_fp(stderr);
+	if (cert)
+		X509_free(cert);
+	if (bio)
+		BIO_free(bio);
+	return -1;
+}
+
+static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
+{
+	int err = X509_STORE_CTX_get_error(ctx);
+
+	/* also accept code-signing keys */
+	if (err == X509_V_ERR_INVALID_PURPOSE
+			&& ctx->cert->ex_xkusage == XKU_CODE_SIGN)
+		status = 1;
+
+	return status;
+}
+
 int main(int argc, char **argv)
 {
 	struct cert_table_header *header;
 	enum verify_status status;
+	int rc, c, flags, verify;
 	struct image *image;
 	const uint8_t *buf;
+	X509_STORE *certs;
 	struct idc *idc;
-	int rc;
 	BIO *idcbio;
 	PKCS7 *p7;
 
 	status = VERIFY_FAIL;
+	certs = X509_STORE_new();
+	verify = 1;
 
-	if (argc != 2) {
-		fprintf(stderr, "usage: %s <boot-image>\n", argv[0]);
+	ERR_load_crypto_strings();
+
+	for (;;) {
+		int idx;
+		c = getopt_long(argc, argv, "c:n", options, &idx);
+		if (c == -1)
+			break;
+
+		switch (c) {
+		case 'c':
+			rc = load_cert(certs, optarg);
+			if (rc)
+				return EXIT_FAILURE;
+			break;
+		case 'n':
+			verify = 0;
+			break;
+		}
+
+	}
+
+	if (argc != optind + 1) {
+		usage(argv[0]);
 		return EXIT_FAILURE;
 	}
 
-	image = image_load(argv[1]);
+	image = image_load(argv[optind]);
 	image_pecoff_parse(image);
 	image_find_regions(image);
 
@@ -79,8 +169,12 @@ int main(int argc, char **argv)
 	if (rc)
 		goto out;
 
-	rc = PKCS7_verify(p7, NULL, NULL, idcbio, NULL,
-			PKCS7_BINARY | PKCS7_NOVERIFY);
+	flags = PKCS7_BINARY;
+	if (!verify)
+		flags |= PKCS7_NOVERIFY;
+
+	X509_STORE_set_verify_cb_func(certs, x509_verify_cb);
+	rc = PKCS7_verify(p7, NULL, certs, idcbio, NULL, flags);
 	if (!rc) {
 		printf("PKCS7 verification failed\n");
 		ERR_print_errors_fp(stderr);
