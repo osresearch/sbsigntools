@@ -117,6 +117,7 @@ int main(int argc, char **argv)
 	certs = X509_STORE_new();
 	verify = 1;
 
+	OpenSSL_add_all_digests();
 	ERR_load_crypto_strings();
 
 	for (;;) {
@@ -152,9 +153,6 @@ int main(int argc, char **argv)
 		fprintf(stderr, "No signature table present\n");
 		goto out;
 	}
-
-	ERR_load_crypto_strings();
-	OpenSSL_add_all_digests();
 
 	header = image->buf + image->data_dir_sigtable->addr;
 	buf = (void *)(header + 1);
