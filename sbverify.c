@@ -153,12 +153,17 @@ int main(int argc, char **argv)
 		goto out;
 	}
 
-	header = image->buf + image->data_dir_sigtable->addr;
-
 	ERR_load_crypto_strings();
 	OpenSSL_add_all_digests();
+
+	header = image->buf + image->data_dir_sigtable->addr;
 	buf = (void *)(header + 1);
 	p7 = d2i_PKCS7(NULL, &buf, header->size);
+	if (!p7) {
+		fprintf(stderr, "Unable to parse signature data\n");
+		ERR_print_errors_fp(stderr);
+		goto out;
+	}
 
 	idcbio = BIO_new(BIO_s_mem());
 	idc = IDC_get(p7, idcbio);
