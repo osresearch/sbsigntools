@@ -8,9 +8,16 @@ LDFLAGS = -fwhole-program
 # build configuration
 sbsign_objs = sbsign.o idc.o image.o
 sbverify_objs = sbverify.o idc.o image.o
-ccan_objs = lib/ccan/libccan.a
-ccan_includes = -I./lib/ccan
 libs = -lbfd -lcrypto
+objs = $(sort $(sbsign_objs) $(sbverify_objs))
+
+# ccan build configuration
+ccan_dir = lib/ccan
+ccan_objs = $(ccan_dir)/libccan.a
+ccan_includes = -I./lib/ccan
+ccan_modules = talloc
+ccan_stamp = $(ccan_dir)/Makefile
+ccan_config = $(ccan_dir)/config.h
 
 # install paths
 DESTDIR ?=
@@ -33,8 +40,15 @@ gen-keyfiles: gen-keyfiles.o $(ccan_objs)
 	$(LINK.o) -o $@ $^ $(libs)
 gen-keyfiles: libs = -luuid
 
-$(ccan_objs):
+# ccan build
+$(ccan_objs): $(ccan_stamp)
 	cd $(@D) && $(MAKE)
+
+$(ccan_config): $(ccan_stamp)
+	cd $(@D) && $(MAKE) config.h
+
+# built objects may require headers from ccan
+$(objs): $(ccan_stamp) $(ccan_config)
 
 install: $(tools)
 	$(install_dirs)
@@ -44,3 +58,18 @@ install: $(tools)
 clean:
 	rm -f $(tools)
 	rm -f *.o
+
+distclean: clean
+	rm -rf $(ccan_dir)
+
+# ccan import
+ccan_source_dir = lib/ccan.git
+ccan_source_file = $(ccan_source_dir)/Makefile
+
+$(ccan_source_file):
+	git submodule init
+	git submodule update
+
+$(ccan_stamp): $(ccan_source_file)
+	$(ccan_source_dir)/tools/create-ccan-tree --exclude-tests \
+		$(@D) $(ccan_modules)
