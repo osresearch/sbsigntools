@@ -42,6 +42,8 @@ sbsign: $(sbsign_objs) $(ccan_objs)
 sbverify: $(sbverify_objs) $(ccan_objs)
 	$(LINK.o) -o $@ $^ $(libs)
 
+sbsign.o sbverify.o: CPPFLAGS+=-DVERSION=\"$(version)\"
+
 gen-keyfiles: gen-keyfiles.o $(ccan_objs)
 	$(LINK.o) -o $@ $^ $(libs)
 gen-keyfiles: libs = -luuid

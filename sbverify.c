@@ -35,6 +35,8 @@
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
 
+static const char *toolname = "sbverify";
+
 enum verify_status {
 	VERIFY_FAIL = 0,
 	VERIFY_OK = 1,
@@ -43,17 +45,24 @@ enum verify_status {
 static struct option options[] = {
 	{ "cert", required_argument, NULL, 'c' },
 	{ "no-verify", no_argument, NULL, 'n' },
+	{ "help", no_argument, NULL, 'h' },
+	{ "version", no_argument, NULL, 'V' },
 	{ NULL, 0, NULL, 0 },
 };
 
-static void usage(const char *progname)
+static void usage(void)
 {
-	fprintf(stderr,
-		"usage: %s --cert <certfile> <efi-boot-image>\n"
-		"options:\n"
+	printf("Usage: %s [options] --cert <certfile> <efi-boot-image>\n"
+		"Verify a UEFI secure boot image.\n\n"
+		"Options:\n"
 		"\t--cert <certfile>  certificate (x509 certificate)\n"
 		"\t--no-verify        don't perform certificate verification\n",
-			progname);
+			toolname);
+}
+
+static void version(void)
+{
+	printf("%s %s\n", toolname, VERSION);
 }
 
 int load_cert(X509_STORE *certs, const char *filename)
@@ -135,12 +144,18 @@ int main(int argc, char **argv)
 		case 'n':
 			verify = 0;
 			break;
+		case 'V':
+			version();
+			return EXIT_SUCCESS;
+		case 'h':
+			usage();
+			return EXIT_SUCCESS;
 		}
 
 	}
 
 	if (argc != optind + 1) {
-		usage(argv[0]);
+		usage();
 		return EXIT_FAILURE;
 	}
 

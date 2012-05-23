@@ -41,6 +41,8 @@
 #include "idc.h"
 #include "image.h"
 
+static const char *toolname = "sbsign";
+
 struct sign_context {
 	struct image *image;
 	const char *infilename;
@@ -53,21 +55,28 @@ static struct option options[] = {
 	{ "cert", required_argument, NULL, 'c' },
 	{ "key", required_argument, NULL, 'k' },
 	{ "verbose", no_argument, NULL, 'v' },
+	{ "help", no_argument, NULL, 'h' },
+	{ "version", no_argument, NULL, 'V' },
 	{ NULL, 0, NULL, 0 },
 };
 
-static void usage(const char *progname)
+static void usage(void)
 {
-	fprintf(stderr,
-		"usage: %s --key <keyfile> --cert <certfile> "
+	printf("Usage: %s [options] --key <keyfile> --cert <certfile> "
 			"<efi-boot-image>\n"
-		"options:\n"
+		"Sign an EFI boot image for use with secure boot.\n\n"
+		"Options:\n"
 		"\t--key <keyfile>    signing key (PEM-encoded RSA "
 						"private key)\n"
 		"\t--cert <certfile>  certificate (x509 certificate)\n"
 		"\t--output <file>    write signed data to <file>\n"
-		"\t                    (default <efi-boot-image>.signed)\n"
-			, progname);
+		"\t                    (default <efi-boot-image>.signed)\n",
+		toolname);
+}
+
+static void version(void)
+{
+	printf("%s %s\n", toolname, VERSION);
 }
 
 static void set_default_outfilename(struct sign_context *ctx)
@@ -106,11 +115,17 @@ int main(int argc, char **argv)
 		case 'd':
 			ctx->verbose = 1;
 			break;
+		case 'V':
+			version();
+			return EXIT_SUCCESS;
+		case 'h':
+			usage();
+			return EXIT_SUCCESS;
 		}
 	}
 
 	if (argc != optind + 1) {
-		usage(argv[0]);
+		usage();
 		return EXIT_FAILURE;
 	}
 
@@ -121,13 +136,13 @@ int main(int argc, char **argv)
 	if (!certfilename) {
 		fprintf(stderr,
 			"error: No certificate specified (with --cert)\n");
-		usage(argv[0]);
+		usage();
 		return EXIT_FAILURE;
 	}
 	if (!keyfilename) {
 		fprintf(stderr,
 			"error: No key specified (with --key)\n");
-		usage(argv[0]);
+		usage();
 		return EXIT_FAILURE;
 	}
 
