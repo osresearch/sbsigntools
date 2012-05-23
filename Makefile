@@ -10,6 +10,7 @@ sbsign_objs = sbsign.o idc.o image.o
 sbverify_objs = sbverify.o idc.o image.o
 libs = -lbfd -lcrypto
 objs = $(sort $(sbsign_objs) $(sbverify_objs))
+docs = docs/sbsign.1 docs/sbverify.1
 
 # ccan build configuration
 ccan_dir = lib/ccan
@@ -23,8 +24,10 @@ ccan_config = $(ccan_dir)/config.h
 DESTDIR ?=
 prefix ?= /usr
 bindir ?= ${prefix}/bin
-install_dirs = install -m 755 -d $(DESTDIR)$(bindir)
+man1dir = ${prefix}/share/man/man1/
+install_dirs = install -m 755 -d $(DESTDIR)$(bindir) $(DESTDIR)$(man1dir)
 install_bin = install -m 755 -t $(DESTDIR)$(bindir)
+install_man1 = install -m 755 -t $(DESTDIR)$(man1dir)
 
 # dist
 package = sbsigntool
@@ -55,12 +58,20 @@ $(ccan_objs): $(ccan_stamp)
 $(ccan_config): $(ccan_stamp)
 	cd $(@D) && $(MAKE) config.h
 
+# doc build
+docs: $(docs)
+.PHONY: docs
+
+$(docs): docs/%.1: docs/%.1.in %
+	help2man --no-info -i $< -o $@ $(patsubst %.1, ./%, $(@F))
+
 # built objects may require headers from ccan
 $(objs): $(ccan_stamp) $(ccan_config)
 
-install: $(tools)
+install: $(tools) $(docs)
 	$(install_dirs)
 	$(install_bin) $(tools)
+	$(install_man1) $(docs)
 .PHONY: install
 
 clean:
