@@ -26,6 +26,12 @@ bindir ?= ${prefix}/bin
 install_dirs = install -m 755 -d $(DESTDIR)$(bindir)
 install_bin = install -m 755 -t $(DESTDIR)$(bindir)
 
+# dist
+package = sbsigntool
+version = 0.1
+pkgver = $(package)-$(version)
+tarball = $(pkgver).tar.gz
+
 tools = sbsign sbverify
 
 all: $(tools)
@@ -59,12 +65,29 @@ clean:
 	rm -f $(tools)
 	rm -f *.o
 
+# tarball build
+tarball: $(tarball)
+
+$(tarball): $(ccan_stamp)
+	ln -s . $(pkgver)
+	tar -zhcvf $@ --exclude '*.tar.gz' \
+		--exclude $(pkgver)/$(pkgver) \
+		--exclude $(ccan_source_dir) \
+		--exclude '.*.swp' \
+		--exclude .git --exclude .gitmodules \
+		$(pkgver)
+	rm $(pkgver)
+
 distclean: clean
 	rm -rf $(ccan_dir)
 
 # ccan import
 ccan_source_dir = lib/ccan.git
 ccan_source_file = $(ccan_source_dir)/Makefile
+
+# protect these rules with the DIST variable, as non-git checkouts will not be
+# able to run the git submodule commands.
+ifeq ($(DIST),1)
 
 $(ccan_source_file):
 	git submodule init
@@ -73,3 +96,4 @@ $(ccan_source_file):
 $(ccan_stamp): $(ccan_source_file)
 	$(ccan_source_dir)/tools/create-ccan-tree --exclude-tests \
 		$(@D) $(ccan_modules)
+endif
