@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include <ccan/talloc/talloc.h>
+#include <ccan/read_write_all/read_write_all.h>
 #include <openssl/sha.h>
 
 #include "image.h"
@@ -64,18 +65,8 @@ struct image *image_load(const char *filename)
 		goto err;
 	}
 
-	for (bytes_read = 0; bytes_read < image->size; bytes_read += rc) {
-		rc = read(image->fd, image->buf + bytes_read,
-					image->size - bytes_read);
-		if (rc < 0) {
-			perror("read");
-			break;
-		}
-		if (rc == 0)
-			break;
-	}
-
-	if (bytes_read < image->size) {
+	if (!read_all(image->fd, image->buf, image->size)) {
+		perror("read_all");
 		fprintf(stderr, "error reading input file\n");
 		goto err;
 	}
@@ -325,23 +316,6 @@ int image_hash_sha256(struct image *image, uint8_t digest[])
 	return !rc;
 }
 
-static int write_buf(int fd, void *buf, int size)
-{
-	int bytes_written, rc;
-
-	for (bytes_written = 0; bytes_written < size;) {
-		rc = write(fd, buf + bytes_written, size - bytes_written);
-
-		if (rc <= 0) {
-			perror("write");
-			return -1;
-		}
-		bytes_written += rc;
-	}
-
-	return 0;
-}
-
 int image_write_signed(struct image *image, const char *filename)
 {
 	struct cert_table_header cert_table_header;
@@ -367,24 +341,24 @@ int image_write_signed(struct image *image, const char *filename)
 		return -1;
 	}
 
-	rc = write_buf(fd, image->buf, image->size);
-	if (rc)
+	rc = write_all(fd, image->buf, image->size);
+	if (!rc)
 		goto out;
 
-	rc = write_buf(fd, &cert_table_header, sizeof(cert_table_header));
-	if (rc)
+	rc = write_all(fd, &cert_table_header, sizeof(cert_table_header));
+	if (!rc)
 		goto out;
 
-	rc = write_buf(fd, image->sigbuf, image->sigsize);
-	if (rc)
+	rc = write_all(fd, image->sigbuf, image->sigsize);
+	if (!rc)
 		goto out;
 
 	if (padlen) {
 		memset(pad, 0, sizeof(pad));
-		rc = write_buf(fd, pad, padlen);
+		rc = write_all(fd, pad, padlen);
 	}
 
 out:
 	close(fd);
-	return rc;
+	return !rc;
 }

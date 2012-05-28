@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ccan_modules=talloc
+ccan_modules=talloc read-write-all
 
 # Add ccan upstream sources
 if [ ! -e lib/ccan.git/Makefile ]
