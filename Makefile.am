@@ -1,4 +1,6 @@
 
+AM_CFLAGS = -Wall -Wextra
+
 bin_PROGRAMS = sbsign sbverify
 
 coff_headers = coff/external.h coff/pe.h coff/i386.h coff/x86_64.h
@@ -9,11 +11,11 @@ common_CFLAGS = -I$(srcdir)/lib/ccan/
 
 sbsign_SOURCES = sbsign.c $(common_SOURCES)
 sbsign_LDADD = $(common_LDADD)
-sbsign_CFLAGS = $(common_CFLAGS)
+sbsign_CFLAGS = $(AM_CFLAGS) $(common_CFLAGS)
 
 sbverify_SOURCES = sbverify.c $(common_SOURCES)
 sbverify_LDADD = $(common_LDADD)
-sbverify_CFLAGS = $(common_CFLAGS)
+sbverify_CFLAGS = $(AM_CFLAGS) $(common_CFLAGS)
 
 man1_MANS = docs/sbsign.1 docs/sbverify.1
 
