@@ -26,6 +26,7 @@
 
 #include <ccan/talloc/talloc.h>
 #include <ccan/read_write_all/read_write_all.h>
+#include <ccan/build_assert/build_assert.h>
 #include <openssl/sha.h>
 
 #include "image.h"
@@ -34,7 +35,6 @@
 
 struct image *image_load(const char *filename)
 {
-	unsigned int bytes_read;
 	struct stat statbuf;
 	struct image *image;
 	int rc;
@@ -78,6 +78,32 @@ err:
 	return NULL;
 }
 
+/**
+ * The PE/COFF headers export struct fields as arrays of chars. So, define
+ * a couple of accessor functions that allow fields to be deferenced as their
+ * native types, to allow strict aliasing. This also allows for endian-
+ * neutral behaviour.
+ */
+static uint32_t __pehdr_u32(char field[])
+{
+	uint8_t *ufield = (uint8_t *)field;
+	return (ufield[3] << 24) +
+		(ufield[2] << 16) +
+		(ufield[1] << 8) +
+		ufield[0];
+}
+
+static uint16_t __pehdr_u16(char field[])
+{
+	uint8_t *ufield = (uint8_t *)field;
+	return (ufield[1] << 8) +
+		ufield[0];
+}
+
+/* wrappers to ensure type correctness */
+#define pehdr_u32(f) __pehdr_u32(f + BUILD_ASSERT_OR_ZERO(sizeof(f) == 4))
+#define pehdr_u16(f) __pehdr_u16(f + BUILD_ASSERT_OR_ZERO(sizeof(f) == 2))
+
 int image_pecoff_parse(struct image *image)
 {
 	char nt_sig[] = {'P', 'E', 0, 0};
@@ -98,7 +124,7 @@ int image_pecoff_parse(struct image *image)
 		return -1;
 	}
 
-	addr = *(uint32_t *)image->doshdr->e_lfanew;
+	addr = pehdr_u32(image->doshdr->e_lfanew);
 	if (addr >= image->size) {
 		fprintf(stderr, "pehdr is beyond end of file [0x%08x]\n",
 				addr);
@@ -116,12 +142,12 @@ int image_pecoff_parse(struct image *image)
 		return -1;
 	}
 
-	if (*(uint16_t *)image->pehdr->f_magic != AMD64MAGIC) {
+	if (pehdr_u16(image->pehdr->f_magic) != AMD64MAGIC) {
 		fprintf(stderr, "Invalid PE header magic for x86_64\n");
 		return -1;
 	}
 
-	if (*(uint16_t *)image->pehdr->f_opthdr != sizeof(*image->aouthdr)) {
+	if (pehdr_u16(image->pehdr->f_opthdr) != sizeof(*image->aouthdr)) {
 		fprintf(stderr, "Invalid a.out header size\n");
 		return -1;
 	}
@@ -151,7 +177,7 @@ int image_pecoff_parse(struct image *image)
 	else
 		image->cert_table = NULL;
 
-	image->sections = *(uint16_t *)image->pehdr->f_nscns;
+	image->sections = pehdr_u16(image->pehdr->f_nscns);
 	image->scnhdr = (void *)(image->aouthdr+1);
 
 	return 0;
@@ -187,7 +213,7 @@ int image_find_regions(struct image *image)
 	size_t bytes;
 
 	gap_warn = 0;
-	align = *(uint32_t *)image->aouthdr->FileAlignment;
+	align = pehdr_u32(image->aouthdr->FileAlignment);
 
 	/* now we know where the checksum and cert table data is, we can
 	 * construct regions that need to be signed */
@@ -222,7 +248,7 @@ int image_find_regions(struct image *image)
 				(void *)image->data_dir_sigtable
 					+ sizeof(struct data_dir_entry),
 				image->buf +
-				*(uint32_t *)image->aouthdr->SizeOfHeaders);
+				pehdr_u32(image->aouthdr->SizeOfHeaders));
 	regions[2].name = "datadir[CERT]->headers";
 	bytes += regions[2].size;
 
@@ -230,8 +256,8 @@ int image_find_regions(struct image *image)
 	for (i = 0; i < image->sections; i++) {
 		uint32_t file_offset, file_size;
 
-		file_offset = *(uint32_t *)image->scnhdr[i].s_scnptr;
-		file_size = *(uint32_t *)image->scnhdr[i].s_size;
+		file_offset = pehdr_u32(image->scnhdr[i].s_scnptr);
+		file_size = pehdr_u32(image->scnhdr[i].s_size);
 
 		if (!file_size)
 			continue;

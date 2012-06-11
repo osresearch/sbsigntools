@@ -243,6 +243,10 @@ struct idc *IDC_get(PKCS7 *p7, BIO *bio)
 			idclen = (idcbuf[2] << 8) +
 				 idcbuf[3];
 			idcbuf += 4;
+		} else {
+			fprintf(stderr, "Invalid ASN.1 data in "
+					"IndirectDataContext?\n");
+			return NULL;
 		}
 
 		BIO_write(bio, idcbuf, idclen);
