@@ -19,8 +19,8 @@ man1_MANS = docs/sbsign.1 docs/sbverify.1
 
 EXTRA_DIST = docs/sbsign.1.in docs/sbverify.1.in
 
-$(builddir)/docs/%.1: $(srcdir)/docs/%.1.in $(builddir)/%
+$(top_builddir)/docs/%.1: $(srcdir)/docs/%.1.in $(top_builddir)/%
 	$(MKDIR_P) $(@D)
-	$(HELP2MAN) --no-info -i $< -o $@ $(builddir)/$*
+	$(HELP2MAN) --no-info -i $< -o $@ $(top_builddir)/$*
 
 SUBDIRS = lib/ccan

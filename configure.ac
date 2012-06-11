@@ -11,6 +11,7 @@ AC_PROG_CC
 AM_PROG_CC_C_O
 AC_PROG_CPP
 AC_PROG_RANLIB
+AC_PROG_MKDIR_P
 
 if test $cross_compiling = no; then
   AM_MISSING_PROG(HELP2MAN, help2man)
