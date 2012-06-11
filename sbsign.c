@@ -112,7 +112,7 @@ int main(int argc, char **argv)
 		case 'k':
 			keyfilename = optarg;
 			break;
-		case 'd':
+		case 'v':
 			ctx->verbose = 1;
 			break;
 		case 'V':
