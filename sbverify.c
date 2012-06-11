@@ -98,6 +98,23 @@ err:
 	return -1;
 }
 
+static int load_image_signature_data(struct image *image,
+		uint8_t **buf, size_t *len)
+{
+	struct cert_table_header *header;
+
+	if (!image->data_dir_sigtable->addr
+			|| !image->data_dir_sigtable->size) {
+		fprintf(stderr, "No signature table present\n");
+		return -1;
+	}
+
+	header = image->buf + image->data_dir_sigtable->addr;
+	*buf = (void *)(header + 1);
+	*len = header->size;
+	return 0;
+}
+
 static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 {
 	int err = X509_STORE_CTX_get_error(ctx);
@@ -112,12 +129,13 @@ static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 
 int main(int argc, char **argv)
 {
-	struct cert_table_header *header;
 	enum verify_status status;
 	int rc, c, flags, verify;
+	const uint8_t *tmp_buf;
 	struct image *image;
-	const uint8_t *buf;
 	X509_STORE *certs;
+	uint8_t *sig_buf;
+	size_t sig_size;
 	struct idc *idc;
 	BIO *idcbio;
 	PKCS7 *p7;
@@ -163,15 +181,15 @@ int main(int argc, char **argv)
 	image_pecoff_parse(image);
 	image_find_regions(image);
 
-	if (!image->data_dir_sigtable->addr
-			|| !image->data_dir_sigtable->size) {
-		fprintf(stderr, "No signature table present\n");
+	rc = load_image_signature_data(image, &sig_buf, &sig_size);
+	if (rc) {
+		fprintf(stderr, "Unable to read signature data from %s\n",
+				argv[optind]);
 		goto out;
 	}
 
-	header = image->buf + image->data_dir_sigtable->addr;
-	buf = (void *)(header + 1);
-	p7 = d2i_PKCS7(NULL, &buf, header->size);
+	tmp_buf = sig_buf;
+	p7 = d2i_PKCS7(NULL, &tmp_buf, sig_size);
 	if (!p7) {
 		fprintf(stderr, "Unable to parse signature data\n");
 		ERR_print_errors_fp(stderr);
