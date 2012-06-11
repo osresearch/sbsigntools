@@ -18,12 +18,18 @@
  */
 #define _GNU_SOURCE
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include <getopt.h>
 
 #include <ccan/talloc/talloc.h>
+#include <ccan/read_write_all/read_write_all.h>
 
 #include "image.h"
 #include "idc.h"
@@ -45,6 +51,7 @@ enum verify_status {
 static struct option options[] = {
 	{ "cert", required_argument, NULL, 'c' },
 	{ "no-verify", no_argument, NULL, 'n' },
+	{ "detached", required_argument, NULL, 'd' },
 	{ "help", no_argument, NULL, 'h' },
 	{ "version", no_argument, NULL, 'V' },
 	{ NULL, 0, NULL, 0 },
@@ -56,7 +63,9 @@ static void usage(void)
 		"Verify a UEFI secure boot image.\n\n"
 		"Options:\n"
 		"\t--cert <certfile>  certificate (x509 certificate)\n"
-		"\t--no-verify        don't perform certificate verification\n",
+		"\t--no-verify        don't perform certificate verification\n"
+		"\t--detached <file>  read signature from <file>, instead of\n"
+		"\t                    looking for an embedded signature\n",
 			toolname);
 }
 
@@ -115,6 +124,48 @@ static int load_image_signature_data(struct image *image,
 	return 0;
 }
 
+static int load_detached_signature_data(struct image *image,
+		const char *filename, uint8_t **buf, size_t *len)
+{
+	struct stat statbuf;
+	uint8_t *tmpbuf = NULL;
+	int fd, rc;
+
+	fd = open(filename, O_RDONLY);
+	if (fd < 0) {
+		fprintf(stderr, "Couldn't open %s: %s\n", filename,
+				strerror(errno));
+		return -1;
+	}
+
+	rc = fstat(fd, &statbuf);
+	if (rc) {
+		perror("stat");
+		goto err;
+	}
+
+	tmpbuf = talloc_array(image, uint8_t, statbuf.st_size);
+	if (!tmpbuf) {
+		perror("talloc_array");
+		goto err;
+	}
+
+	rc = read_all(fd, tmpbuf, statbuf.st_size);
+	if (!rc) {
+		perror("read_all");
+		goto err;
+	}
+
+	*buf = tmpbuf;
+	*len = statbuf.st_size;
+	return 0;
+
+err:
+	close(fd);
+	talloc_free(tmpbuf);
+	return -1;
+}
+
 static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 {
 	int err = X509_STORE_CTX_get_error(ctx);
@@ -129,6 +180,7 @@ static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 
 int main(int argc, char **argv)
 {
+	const char *detached_sig_filename;
 	enum verify_status status;
 	int rc, c, flags, verify;
 	const uint8_t *tmp_buf;
@@ -143,6 +195,7 @@ int main(int argc, char **argv)
 	status = VERIFY_FAIL;
 	certs = X509_STORE_new();
 	verify = 1;
+	detached_sig_filename = NULL;
 
 	OpenSSL_add_all_digests();
 	ERR_load_crypto_strings();
@@ -158,6 +211,9 @@ int main(int argc, char **argv)
 			rc = load_cert(certs, optarg);
 			if (rc)
 				return EXIT_FAILURE;
+			break;
+		case 'd':
+			detached_sig_filename = optarg;
 			break;
 		case 'n':
 			verify = 0;
@@ -181,10 +237,15 @@ int main(int argc, char **argv)
 	image_pecoff_parse(image);
 	image_find_regions(image);
 
-	rc = load_image_signature_data(image, &sig_buf, &sig_size);
+	if (detached_sig_filename)
+		rc = load_detached_signature_data(image, detached_sig_filename,
+				&sig_buf, &sig_size);
+	else
+		rc = load_image_signature_data(image, &sig_buf, &sig_size);
+
 	if (rc) {
 		fprintf(stderr, "Unable to read signature data from %s\n",
-				argv[optind]);
+				detached_sig_filename ? : argv[optind]);
 		goto out;
 	}
 
