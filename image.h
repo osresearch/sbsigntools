@@ -81,6 +81,7 @@ int image_pecoff_parse(struct image *image);
 int image_find_regions(struct image *image);
 int image_hash_sha256(struct image *image, uint8_t digest[]);
 int image_write_signed(struct image *image, const char *filename);
+int image_write_detached(struct image *image, const char *filename);
 
 #endif /* IMAGE_H */
 

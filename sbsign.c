@@ -48,12 +48,14 @@ struct sign_context {
 	const char *infilename;
 	const char *outfilename;
 	int verbose;
+	int detached;
 };
 
 static struct option options[] = {
 	{ "output", required_argument, NULL, 'o' },
 	{ "cert", required_argument, NULL, 'c' },
 	{ "key", required_argument, NULL, 'k' },
+	{ "detached", no_argument, NULL, 'd' },
 	{ "verbose", no_argument, NULL, 'v' },
 	{ "help", no_argument, NULL, 'h' },
 	{ "version", no_argument, NULL, 'V' },
@@ -69,8 +71,12 @@ static void usage(void)
 		"\t--key <keyfile>    signing key (PEM-encoded RSA "
 						"private key)\n"
 		"\t--cert <certfile>  certificate (x509 certificate)\n"
+		"\t--detached         write a detached signature, instead of\n"
+		"\t                    a signed binary\n"
 		"\t--output <file>    write signed data to <file>\n"
-		"\t                    (default <efi-boot-image>.signed)\n",
+		"\t                    (default <efi-boot-image>.signed,\n"
+		"\t                    or <efi-boot-image>.pk7 for detached\n"
+		"\t                    signatures)\n",
 		toolname);
 }
 
@@ -81,7 +87,12 @@ static void version(void)
 
 static void set_default_outfilename(struct sign_context *ctx)
 {
-	ctx->outfilename = talloc_asprintf(ctx, "%s.signed", ctx->infilename);
+	const char *extension;
+
+	extension = ctx->detached ? "pk7" : "signed";
+
+	ctx->outfilename = talloc_asprintf(ctx, "%s.%s",
+			ctx->infilename, extension);
 }
 
 int main(int argc, char **argv)
@@ -111,6 +122,9 @@ int main(int argc, char **argv)
 			break;
 		case 'k':
 			keyfilename = optarg;
+			break;
+		case 'd':
+			ctx->detached = 1;
 			break;
 		case 'v':
 			ctx->verbose = 1;
@@ -195,7 +209,10 @@ int main(int argc, char **argv)
 	i2d_PKCS7(p7, &buf);
 	ERR_print_errors_fp(stdout);
 
-	image_write_signed(ctx->image, ctx->outfilename);
+	if (ctx->detached)
+		image_write_detached(ctx->image, ctx->outfilename);
+	else
+		image_write_signed(ctx->image, ctx->outfilename);
 
 	talloc_free(ctx);
 
