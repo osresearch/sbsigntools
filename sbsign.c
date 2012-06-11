@@ -109,7 +109,7 @@ int main(int argc, char **argv)
 
 	for (;;) {
 		int idx;
-		c = getopt_long(argc, argv, "o:c:k:v", options, &idx);
+		c = getopt_long(argc, argv, "o:c:k:dvVh", options, &idx);
 		if (c == -1)
 			break;
 

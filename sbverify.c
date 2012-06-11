@@ -202,7 +202,7 @@ int main(int argc, char **argv)
 
 	for (;;) {
 		int idx;
-		c = getopt_long(argc, argv, "c:n", options, &idx);
+		c = getopt_long(argc, argv, "c:d:nVh", options, &idx);
 		if (c == -1)
 			break;
 
