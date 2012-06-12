@@ -17,6 +17,7 @@
  * USA.
  */
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -342,24 +343,32 @@ int image_hash_sha256(struct image *image, uint8_t digest[])
 	return !rc;
 }
 
-int image_write_signed(struct image *image, const char *filename)
+int image_write(struct image *image, const char *filename)
 {
 	struct cert_table_header cert_table_header;
 	int fd, rc, len, padlen;
+	bool is_signed;
 	uint8_t pad[8];
 
-	cert_table_header.size = image->sigsize;
-	cert_table_header.revision = 0x0200; /* = revision 2 */
-	cert_table_header.type = 0x0002; /* PKCS signedData */
+	is_signed = image->sigbuf && image->sigsize;
 
-	len = sizeof(cert_table_header) + image->sigsize;
+	/* optionally update the image to contain signature data */
+	if (is_signed) {
+		cert_table_header.size = image->sigsize;
+		cert_table_header.revision = 0x0200; /* = revision 2 */
+		cert_table_header.type = 0x0002; /* PKCS signedData */
 
-	/* pad to sizeof(pad)-byte boundary */
-	padlen = align_up(len, sizeof(pad)) - len;
+		len = sizeof(cert_table_header) + image->sigsize;
 
-	/* update the image to contain signature data */
-	image->data_dir_sigtable->addr = image->size;
-	image->data_dir_sigtable->size = len + padlen;
+		/* pad to sizeof(pad)-byte boundary */
+		padlen = align_up(len, sizeof(pad)) - len;
+
+		image->data_dir_sigtable->addr = image->size;
+		image->data_dir_sigtable->size = len + padlen;
+	} else {
+		image->data_dir_sigtable->addr = 0;
+		image->data_dir_sigtable->size = 0;
+	}
 
 	fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0) {
@@ -369,6 +378,8 @@ int image_write_signed(struct image *image, const char *filename)
 
 	rc = write_all(fd, image->buf, image->size);
 	if (!rc)
+		goto out;
+	if (!is_signed)
 		goto out;
 
 	rc = write_all(fd, &cert_table_header, sizeof(cert_table_header));

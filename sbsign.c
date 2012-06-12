@@ -212,7 +212,7 @@ int main(int argc, char **argv)
 	if (ctx->detached)
 		image_write_detached(ctx->image, ctx->outfilename);
 	else
-		image_write_signed(ctx->image, ctx->outfilename);
+		image_write(ctx->image, ctx->outfilename);
 
 	talloc_free(ctx);
 
