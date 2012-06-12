@@ -1,7 +1,7 @@
 
 AM_CFLAGS = -Wall -Wextra
 
-bin_PROGRAMS = sbsign sbverify
+bin_PROGRAMS = sbsign sbverify sbattach
 
 coff_headers = coff/external.h coff/pe.h coff/i386.h coff/x86_64.h
 
@@ -16,6 +16,10 @@ sbsign_CFLAGS = $(AM_CFLAGS) $(common_CFLAGS)
 sbverify_SOURCES = sbverify.c $(common_SOURCES)
 sbverify_LDADD = $(common_LDADD)
 sbverify_CFLAGS = $(AM_CFLAGS) $(common_CFLAGS)
+
+sbattach_SOURCES = sbattach.c $(common_SOURCES)
+sbattach_LDADD = $(common_LDADD)
+sbattach_CFLAGS = $(AM_CFLAGS) $(common_CFLAGS)
 
 man1_MANS = docs/sbsign.1 docs/sbverify.1
 
