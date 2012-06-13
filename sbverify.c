@@ -234,6 +234,11 @@ int main(int argc, char **argv)
 	}
 
 	image = image_load(argv[optind]);
+	if (!image) {
+		fprintf(stderr, "Can't open image %s\n", argv[optind]);
+		return EXIT_FAILURE;
+	}
+
 	image_pecoff_parse(image);
 	image_find_regions(image);
 
