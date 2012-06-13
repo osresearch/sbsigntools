@@ -2,5 +2,7 @@
 
 . "$srcdir/common.sh"
 
-"$sbsign" --cert "$cert" --key "$key" --output test.signed "$image"
-"$sbverify" --cert "$cert" test.signed
+signed="test.signed"
+
+"$sbsign" --cert "$cert" --key "$key" --output "$signed" "$image"
+"$sbverify" --cert "$cert" "$signed"

@@ -1,12 +1,18 @@
 
-basedir=..
-testdir="$basedir/tests"
-bindir="$basedir"
+basedir=$(cd $srcdir && pwd)
+datadir=$(pwd)
+bindir="$datadir/.."
 
 sbsign=$bindir/sbsign
 sbverify=$bindir/sbverify
 sbattach=$bindir/sbattach
 
-key="$testdir/private-key.rsa"
-cert="$testdir/public-cert.pem"
-image="$testdir/test.pecoff"
+key="$datadir/private-key.rsa"
+cert="$datadir/public-cert.pem"
+image="$datadir/test.pecoff"
+
+tempdir=$(mktemp --directory)
+exit_trap='rm -rf $tempdir'
+trap "$exit_trap" EXIT
+
+cd "$tempdir"

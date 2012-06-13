@@ -2,9 +2,7 @@
 
 . "$srcdir/common.sh"
 
-sig=test.sig
-
-trap 'rm -f "$sig"' EXIT
+sig="test.sig"
 
 "$sbsign" --cert "$cert" --key "$key" --detached --output $sig "$image"
 "$sbverify" --cert "$cert" --detached $sig "$image"

@@ -2,11 +2,10 @@
 
 . "$srcdir/common.sh"
 
-sig=test.sig
-signed=test.signed
+sig="test.sig"
+signed="test.signed"
 
-trap 'rm -f "$sig" "$signed"' EXIT
-
-"$sbsign" --cert "$cert" --key "$key" --detached --output $sig "$image"
-"$sbattach" --attach $sig $signed
+"$sbsign" --cert "$cert" --key "$key" --detached --output "$sig" "$image"
+cp "$image" "$signed"
+"$sbattach" --attach "$sig" "$signed"
 "$sbverify" --cert "$cert" "$signed"
