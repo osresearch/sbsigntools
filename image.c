@@ -34,51 +34,6 @@
 
 #define DATA_DIR_CERT_TABLE	4
 
-struct image *image_load(const char *filename)
-{
-	struct stat statbuf;
-	struct image *image;
-	int rc;
-
-	image = talloc(NULL, struct image);
-	if (!image) {
-		perror("talloc(image)");
-		return NULL;
-	}
-
-	image->fd = open(filename, O_RDONLY);
-	if (image->fd < 0) {
-		perror("open");
-		goto err;
-	}
-
-	rc = fstat(image->fd, &statbuf);
-	if (rc) {
-		perror("fstat");
-		goto err;
-	}
-
-	image->size = statbuf.st_size;
-
-	image->buf = talloc_size(image, image->size);
-	if (!image->buf) {
-		perror("talloc(buf)");
-		goto err;
-	}
-
-	if (!read_all(image->fd, image->buf, image->size)) {
-		perror("read_all");
-		fprintf(stderr, "error reading input file\n");
-		goto err;
-	}
-
-	lseek(image->fd, 0, SEEK_SET);
-	return image;
-err:
-	talloc_free(image);
-	return NULL;
-}
-
 /**
  * The PE/COFF headers export struct fields as arrays of chars. So, define
  * a couple of accessor functions that allow fields to be deferenced as their
@@ -105,7 +60,7 @@ static uint16_t __pehdr_u16(char field[])
 #define pehdr_u32(f) __pehdr_u32(f + BUILD_ASSERT_OR_ZERO(sizeof(f) == 4))
 #define pehdr_u16(f) __pehdr_u16(f + BUILD_ASSERT_OR_ZERO(sizeof(f) == 2))
 
-int image_pecoff_parse(struct image *image)
+static int image_pecoff_parse(struct image *image)
 {
 	char nt_sig[] = {'P', 'E', 0, 0};
 	size_t size = image->size;
@@ -182,6 +137,56 @@ int image_pecoff_parse(struct image *image)
 	image->scnhdr = (void *)(image->aouthdr+1);
 
 	return 0;
+}
+
+struct image *image_load(const char *filename)
+{
+	struct stat statbuf;
+	struct image *image;
+	int rc;
+
+	image = talloc(NULL, struct image);
+	if (!image) {
+		perror("talloc(image)");
+		return NULL;
+	}
+
+	image->fd = open(filename, O_RDONLY);
+	if (image->fd < 0) {
+		perror("open");
+		goto err;
+	}
+
+	rc = fstat(image->fd, &statbuf);
+	if (rc) {
+		perror("fstat");
+		goto err;
+	}
+
+	image->size = statbuf.st_size;
+
+	image->buf = talloc_size(image, image->size);
+	if (!image->buf) {
+		perror("talloc(buf)");
+		goto err;
+	}
+
+	if (!read_all(image->fd, image->buf, image->size)) {
+		perror("read_all");
+		fprintf(stderr, "error reading input file\n");
+		goto err;
+	}
+
+	lseek(image->fd, 0, SEEK_SET);
+
+	rc = image_pecoff_parse(image);
+	if (rc)
+		goto err;
+
+	return image;
+err:
+	talloc_free(image);
+	return NULL;
 }
 
 static int align_up(int size, int align)

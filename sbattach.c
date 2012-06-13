@@ -214,8 +214,6 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	image_pecoff_parse(image);
-
 	rc = 0;
 
 	if (action == ACTION_ATTACH)

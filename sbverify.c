@@ -239,7 +239,6 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	image_pecoff_parse(image);
 	image_find_regions(image);
 
 	if (detached_sig_filename)

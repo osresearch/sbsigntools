@@ -77,7 +77,6 @@ struct cert_table_header {
 
 struct image *image_load(const char *filename);
 
-int image_pecoff_parse(struct image *image);
 int image_find_regions(struct image *image);
 int image_hash_sha256(struct image *image, uint8_t digest[]);
 int image_write(struct image *image, const char *filename);
