@@ -37,7 +37,12 @@ $(test_cert): $(test_key) Makefile
 
 TESTS = sign-verify.sh \
 	sign-verify-detached.sh \
-	sign-attach-verify.sh
+	sign-attach-verify.sh \
+	sign-missing-image.sh \
+	sign-missing-cert.sh \
+	sign-missing-key.sh \
+	verify-missing-image.sh \
+	verify-missing-cert.sh
 
 EXTRA_DIST = $(test_lds) test.S $(TESTS) $(check_SCRIPTS)
 CLEANFILES = $(test_key) $(test_cert) $(test_image)
