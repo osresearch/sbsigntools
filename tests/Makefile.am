@@ -27,7 +27,7 @@ test.elf: test.$(OBJEXT) $(test_lds)
 
 test.$(OBJEXT): ASFLAGS = -m64
 test.$(OBJEXT): $(srcdir)/test.S
-	$(AS) -o $@ $^
+	$(COMPILE.S) -o $@ $^
 
 $(test_key): Makefile
 	openssl genrsa -out $@ 2048
