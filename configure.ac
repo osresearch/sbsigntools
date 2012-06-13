@@ -1,4 +1,4 @@
-AC_INIT([sbsigntool], [0.1], [jeremy.kerr@canonical.com])
+AC_INIT([sbsigntool], [0.2], [jeremy.kerr@canonical.com])
 
 AM_INIT_AUTOMAKE()
 
