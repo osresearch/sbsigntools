@@ -21,9 +21,9 @@ sbattach_SOURCES = sbattach.c $(common_SOURCES)
 sbattach_LDADD = $(common_LDADD)
 sbattach_CFLAGS = $(AM_CFLAGS) $(common_CFLAGS)
 
-man1_MANS = docs/sbsign.1 docs/sbverify.1
+man1_MANS = docs/sbsign.1 docs/sbverify.1 docs/sbattach.1
 
-EXTRA_DIST = docs/sbsign.1.in docs/sbverify.1.in
+EXTRA_DIST = docs/sbsign.1.in docs/sbverify.1.in docs/sbattach.1.in
 CLEANFILES = $(man1_MANS)
 
 $(top_builddir)/docs/%.1: $(srcdir)/docs/%.1.in $(top_builddir)/%
