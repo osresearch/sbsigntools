@@ -7,11 +7,15 @@ AC_PREREQ(2.60)
 AC_CONFIG_HEADERS(config.h)
 AC_CONFIG_SRCDIR(sbsign.c)
 
+AM_PROG_AS
 AC_PROG_CC
 AM_PROG_CC_C_O
 AC_PROG_CPP
 AC_PROG_RANLIB
 AC_PROG_MKDIR_P
+
+AC_CHECK_TOOL(OBJCOPY, [objcopy])
+AC_CHECK_TOOL(STRIP, [strip])
 
 if test $cross_compiling = no; then
   AM_MISSING_PROG(HELP2MAN, help2man)
@@ -51,5 +55,5 @@ PKG_CHECK_MODULES(libcrypto, libcrypto,
     [],
     AC_MSG_ERROR([libcrypto (from the OpenSSL package) is required]))
 
-AC_CONFIG_FILES([Makefile lib/ccan/Makefile])
+AC_CONFIG_FILES([Makefile lib/ccan/Makefile tests/Makefile])
 AC_OUTPUT
