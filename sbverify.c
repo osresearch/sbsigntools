@@ -180,7 +180,7 @@ static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 
 int main(int argc, char **argv)
 {
-	const char *detached_sig_filename;
+	const char *detached_sig_filename, *image_filename;
 	enum verify_status status;
 	int rc, c, flags, verify;
 	const uint8_t *tmp_buf;
@@ -233,9 +233,11 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	image = image_load(argv[optind]);
+	image_filename = argv[optind];
+
+	image = image_load(image_filename);
 	if (!image) {
-		fprintf(stderr, "Can't open image %s\n", argv[optind]);
+		fprintf(stderr, "Can't open image %s\n", image_filename);
 		return EXIT_FAILURE;
 	}
 
@@ -249,7 +251,7 @@ int main(int argc, char **argv)
 
 	if (rc) {
 		fprintf(stderr, "Unable to read signature data from %s\n",
-				detached_sig_filename ? : argv[optind]);
+				detached_sig_filename ? : image_filename);
 		goto out;
 	}
 
