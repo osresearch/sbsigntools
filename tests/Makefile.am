@@ -42,7 +42,8 @@ TESTS = sign-verify.sh \
 	sign-missing-cert.sh \
 	sign-missing-key.sh \
 	verify-missing-image.sh \
-	verify-missing-cert.sh
+	verify-missing-cert.sh \
+	sign-invalidattach-verify.sh
 
 EXTRA_DIST = $(test_lds) test.S $(TESTS) $(check_SCRIPTS)
 CLEANFILES = $(test_key) $(test_cert) $(test_image)
