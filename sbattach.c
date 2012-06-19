@@ -31,6 +31,9 @@
 
 #include <getopt.h>
 
+#include <openssl/pkcs7.h>
+#include <openssl/err.h>
+
 #include <ccan/talloc/talloc.h>
 #include <ccan/read_write_all/read_write_all.h>
 
@@ -83,6 +86,8 @@ static int attach_sig(struct image *image, const char *image_filename,
 	uint8_t *sigbuf;
 	size_t size;
 	int fd, rc;
+	PKCS7 *p7;
+	const uint8_t *tmp_buf;
 
 	sigbuf = NULL;
 
@@ -116,6 +121,23 @@ static int attach_sig(struct image *image, const char *image_filename,
 
 	image->sigbuf = sigbuf;
 	image->sigsize = size;
+
+	tmp_buf = sigbuf;
+	p7 = d2i_PKCS7(NULL, &tmp_buf, image->sigsize);
+	if (!p7) {
+		fprintf(stderr, "Unable to parse signature data in file: %s\n",
+				sig_filename);
+		ERR_print_errors_fp(stderr);
+		goto out;
+	}
+	rc = PKCS7_verify(p7, NULL, NULL, NULL, NULL,
+				PKCS7_BINARY | PKCS7_NOVERIFY | PKCS7_NOSIGS);
+	if (!rc) {
+		fprintf(stderr, "PKCS7 verification failed for file %s\n",
+				sig_filename);
+		ERR_print_errors_fp(stderr);
+		goto out;
+	}
 
 	rc = image_write(image, image_filename);
 	if (rc)
@@ -207,6 +229,9 @@ int main(int argc, char **argv)
 		usage();
 		return EXIT_FAILURE;
 	}
+
+	ERR_load_crypto_strings();
+	OpenSSL_add_all_digests();
 
 	image = image_load(image_filename);
 	if (!image) {
