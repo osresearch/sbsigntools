@@ -17,6 +17,10 @@ AC_PROG_MKDIR_P
 AC_CHECK_TOOL(OBJCOPY, [objcopy])
 AC_CHECK_TOOL(STRIP, [strip])
 
+ AC_CHECK_HEADER([bfd.h], [],
+  AC_MSG_ERROR([bfd.h not found.]
+[bfd.h is usually distributed in a binutils development package.]))
+
 if test $cross_compiling = no; then
   AM_MISSING_PROG(HELP2MAN, help2man)
 else
