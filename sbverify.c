@@ -120,7 +120,7 @@ static int load_image_signature_data(struct image *image,
 
 	header = image->buf + image->data_dir_sigtable->addr;
 	*buf = (void *)(header + 1);
-	*len = header->size;
+	*len = header->size - sizeof(*header);
 	return 0;
 }
 

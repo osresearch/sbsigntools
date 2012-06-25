@@ -359,7 +359,8 @@ int image_write(struct image *image, const char *filename)
 
 	/* optionally update the image to contain signature data */
 	if (is_signed) {
-		cert_table_header.size = image->sigsize;
+		cert_table_header.size = image->sigsize +
+						sizeof(cert_table_header);
 		cert_table_header.revision = 0x0200; /* = revision 2 */
 		cert_table_header.type = 0x0002; /* PKCS signedData */
 
