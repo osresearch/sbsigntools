@@ -170,6 +170,7 @@ int main(int argc, char **argv)
 
 	ERR_load_crypto_strings();
 	OpenSSL_add_all_digests();
+	OpenSSL_add_all_ciphers();
 
 	BIO *privkey_bio = BIO_new_file(keyfilename, "r");
 	EVP_PKEY *pkey = PEM_read_bio_PrivateKey(privkey_bio, NULL, NULL, NULL);
