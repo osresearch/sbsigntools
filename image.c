@@ -304,14 +304,27 @@ int image_find_regions(struct image *image)
 		fprintf(stderr, "gaps in the section table may result in "
 				"different checksums\n");
 
-	if (bytes + image->cert_table_size != image->size) {
-		fprintf(stderr, "warning: data remaining[%zd vs %zd]: gaps "
-				"between PE/COFF sections?\n",
-				bytes, image->size);
-	}
-
 	qsort(image->checksum_regions, image->n_checksum_regions,
 			sizeof(struct region), cmp_regions);
+
+	if (bytes + image->cert_table_size != image->size) {
+		int n = image->n_checksum_regions++;
+		struct region *r;
+
+		image->checksum_regions = talloc_realloc(image,
+				image->checksum_regions,
+				struct region,
+				image->n_checksum_regions);
+		r = &image->checksum_regions[n];
+		r->name = "endjunk";
+		r->data = image->buf + bytes;
+		r->size = image->size - bytes - image->cert_table_size;
+
+		fprintf(stderr, "warning: data remaining[%zd vs %zd]: gaps "
+				"between PE/COFF sections?\n",
+				bytes + image->cert_table_size, image->size);
+		
+	}
 
 	return 0;
 }
