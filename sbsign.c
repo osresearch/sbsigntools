@@ -195,6 +195,11 @@ int main(int argc, char **argv)
 
 	PKCS7_SIGNER_INFO *si = PKCS7_sign_add_signer(p7, cert,
 			pkey, md, PKCS7_BINARY);
+	if (!si) {
+		fprintf(stderr, "error in key/certificate chain\n");
+		ERR_print_errors_fp(stderr);
+		return EXIT_FAILURE;
+	}
 
 	PKCS7_content_new(p7, NID_pkcs7_data);
 
