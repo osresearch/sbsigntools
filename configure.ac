@@ -59,5 +59,19 @@ PKG_CHECK_MODULES(libcrypto, libcrypto,
     [],
     AC_MSG_ERROR([libcrypto (from the OpenSSL package) is required]))
 
+PKG_CHECK_MODULES(uuid, uuid,
+    [],
+    AC_MSG_ERROR([libuuid (from the uuid package) is required]))
+
+dnl gnu-efi headers require extra include dirs
+EFI_ARCH=$(uname -m)
+EFI_CPPFLAGS="-I/usr/include/efi -I/usr/include/efi/$EFI_ARCH \
+ -DEFI_FUNCTION_WRAPPER"
+CPPFLAGS_save="$CPPFLAGS"
+CPPFLAGS="$CPPFLAGS $EFI_CPPFLAGS"
+AC_CHECK_HEADERS([efi.h], [], [], $EFI_INCLUDES)
+CPPFLAGS="$CPPFLAGS_save"
+AC_SUBST(EFI_CPPFLAGS, $EFI_CPPFLAGS)
+
 AC_CONFIG_FILES([Makefile lib/ccan/Makefile tests/Makefile])
 AC_OUTPUT

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ccan_modules="talloc read_write_all build_assert"
+ccan_modules="talloc read_write_all build_assert array_size"
 
 # Add ccan upstream sources
 if [ ! -e lib/ccan.git/Makefile ]
