@@ -47,6 +47,9 @@
 
 #define DATA_DIR_CERT_TABLE	4
 
+#define CERT_TABLE_TYPE_PKCS	0x0002	/* PKCS signedData */
+#define CERT_TABLE_REVISION	0x0200	/* revision 2 */
+
 /**
  * The PE/COFF headers export struct fields as arrays of chars. So, define
  * a couple of accessor functions that allow fields to be deferenced as their
@@ -75,6 +78,7 @@ static uint16_t __pehdr_u16(char field[])
 
 static int image_pecoff_parse(struct image *image)
 {
+	struct cert_table_header *cert_table;
 	char nt_sig[] = {'P', 'E', 0, 0};
 	size_t size = image->size;
 	uint32_t addr;
@@ -142,9 +146,21 @@ static int image_pecoff_parse(struct image *image)
 
 	image->cert_table_size = image->data_dir_sigtable->size;
 	if (image->cert_table_size)
-		image->cert_table = image->buf + image->data_dir_sigtable->addr;
+		cert_table = image->buf + image->data_dir_sigtable->addr;
 	else
-		image->cert_table = NULL;
+		cert_table = NULL;
+
+	image->cert_table = cert_table;
+
+	/* if we have a valid cert table header, populate sigbuf as a shadow
+	 * copy of the cert table */
+	if (cert_table && cert_table->revision == CERT_TABLE_REVISION &&
+			cert_table->type == CERT_TABLE_TYPE_PKCS &&
+			cert_table->size < size) {
+		image->sigsize = cert_table->size;
+		image->sigbuf = talloc_memdup(image, cert_table + 1,
+				image->sigsize);
+	}
 
 	image->sections = pehdr_u16(image->pehdr->f_nscns);
 	image->scnhdr = (void *)(image->aouthdr+1);
@@ -387,8 +403,8 @@ int image_write(struct image *image, const char *filename)
 	if (is_signed) {
 		cert_table_header.size = image->sigsize +
 						sizeof(cert_table_header);
-		cert_table_header.revision = 0x0200; /* = revision 2 */
-		cert_table_header.type = 0x0002; /* PKCS signedData */
+		cert_table_header.revision = CERT_TABLE_REVISION;
+		cert_table_header.type = CERT_TABLE_TYPE_PKCS;
 
 		len = sizeof(cert_table_header) + image->sigsize;
 

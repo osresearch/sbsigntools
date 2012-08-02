@@ -37,6 +37,7 @@ $(test_cert): $(test_key) Makefile
 
 TESTS = sign-verify.sh \
 	sign-verify-detached.sh \
+	sign-detach-verify.sh \
 	sign-attach-verify.sh \
 	sign-missing-image.sh \
 	sign-missing-cert.sh \
