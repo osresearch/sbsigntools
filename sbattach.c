@@ -45,6 +45,7 @@
 #include <getopt.h>
 
 #include <openssl/pkcs7.h>
+#include <openssl/evp.h>
 #include <openssl/err.h>
 
 #include <ccan/talloc/talloc.h>
