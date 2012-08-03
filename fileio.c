@@ -31,10 +31,17 @@
  */
 
 #include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/stat.h>
 
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
+
+#include <ccan/talloc/talloc.h>
+#include <ccan/read_write_all/read_write_all.h>
 
 #include "fileio.h"
 
@@ -77,4 +84,54 @@ out:
 		ERR_print_errors_fp(stderr);
 	}
 	return cert;
+}
+
+int fileio_read_file(void *ctx, const char *filename,
+		 uint8_t **out_buf, size_t *out_len)
+{
+	struct stat statbuf;
+	uint8_t *buf;
+	size_t len;
+	int fd, rc;
+
+	rc = -1;
+
+	fd = open(filename, O_RDONLY);
+	if (fd < 0) {
+		perror("open");
+		goto out;
+	}
+
+	rc = fstat(fd, &statbuf);
+	if (rc) {
+		perror("fstat");
+		goto out;
+	}
+
+	len = statbuf.st_size;
+
+	buf = talloc_array(ctx, uint8_t, len);
+	if (!buf) {
+		perror("talloc");
+		goto out;
+	}
+
+	if (!read_all(fd, buf, len)) {
+		perror("read_all");
+		goto out;
+	}
+
+	rc = 0;
+
+out:
+	if (fd >= 0)
+		close(fd);
+	if (rc) {
+		fprintf(stderr, "Error reading file %s\n", filename);
+	} else {
+		*out_buf = buf;
+		*out_len = len;
+	}
+	return rc;
+
 }

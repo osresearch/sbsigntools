@@ -54,6 +54,7 @@
 #include "config.h"
 
 #include "image.h"
+#include "fileio.h"
 
 static const char *toolname = "sbattach";
 
@@ -96,45 +97,19 @@ static int detach_sig(struct image *image, const char *sig_filename)
 static int attach_sig(struct image *image, const char *image_filename,
 		const char *sig_filename)
 {
-	struct stat statbuf;
+	const uint8_t *tmp_buf;
 	uint8_t *sigbuf;
 	size_t size;
-	int fd, rc;
 	PKCS7 *p7;
-	const uint8_t *tmp_buf;
+	int rc;
 
-	sigbuf = NULL;
-
-	fd = open(sig_filename, O_RDONLY);
-	if (fd < 0) {
-		fprintf(stderr, "Can't open file %s: %s\n", sig_filename,
-				strerror(errno));
-		return -1;
-	}
-
-	rc = fstat(fd, &statbuf);
-	if (rc) {
-		perror("fstat");
+	rc = fileio_read_file(image, sig_filename, &sigbuf, &size);
+	if (rc)
 		goto out;
-	}
-
-	size = statbuf.st_size;
-
-	sigbuf = talloc_array(image, uint8_t, size);
-	if (!sigbuf) {
-		perror("talloc");
-		goto out;
-	}
-
-	rc = read_all(fd, sigbuf, size);
-	if (!rc) {
-		fprintf(stderr, "Error reading %s: %s\n", sig_filename,
-				strerror(errno));
-		goto out;
-	}
 
 	image_add_signature(image, sigbuf, size);
 
+	rc = -1;
 	tmp_buf = sigbuf;
 	p7 = d2i_PKCS7(NULL, &tmp_buf, size);
 	if (!p7) {
@@ -158,7 +133,6 @@ static int attach_sig(struct image *image, const char *image_filename,
 				strerror(errno));
 
 out:
-	close(fd);
 	talloc_free(sigbuf);
 	return rc;
 }

@@ -48,8 +48,7 @@ struct region {
 };
 
 struct image {
-	int		fd;
-	void		*buf;
+	uint8_t		*buf;
 	size_t		size;
 
 	/* Pointers to interesting parts of the image */

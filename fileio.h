@@ -32,11 +32,16 @@
 #ifndef FILEIO_H
 #define FILEIO_H
 
+#include <stdint.h>
+
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 
 EVP_PKEY *fileio_read_pkey(const char *filename);
 X509 *fileio_read_cert(const char *filename);
+
+int fileio_read_file(void *ctx, const char *filename,
+		uint8_t **out_buf, size_t *out_len);
 
 #endif /* FILEIO_H */
 

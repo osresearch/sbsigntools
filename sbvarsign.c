@@ -65,7 +65,7 @@ struct varsign_context {
 	const char			*outfilename;
 
 	uint8_t				*data;
-	unsigned int			data_len;
+	size_t				data_len;
 
 	CHAR16				*var_name;
 	int				var_name_bytes;
@@ -191,50 +191,6 @@ static int parse_guid(const char *str, EFI_GUID *guid)
 	memcpy(guid->Data4, &uuid[8], sizeof(guid->Data4));
 
 	return 0;
-}
-
-static int read_var_data(struct varsign_context *ctx)
-{
-	struct stat statbuf;
-	int rc, fd = -1;
-
-	fd = open(ctx->infilename, O_RDONLY);
-	if (fd < 0) {
-		perror("open");
-		goto err;
-	}
-
-	rc = fstat(fd, &statbuf);
-	if (rc) {
-		perror("fstat");
-		goto err;
-	}
-
-	ctx->data_len = statbuf.st_size;
-	ctx->data = talloc_size(ctx, ctx->data_len);
-
-	if (!ctx->data) {
-		perror("talloc");
-		goto err;
-	}
-
-	if (!read_all(fd, ctx->data, ctx->data_len)) {
-		perror("read_all");
-		goto err;
-	}
-
-	close(fd);
-	return 0;
-
-err:
-	if (fd > 0)
-		close(fd);
-	ctx->data_len = 0;
-	talloc_free(ctx->data);
-	ctx->data = NULL;
-	fprintf(stderr, "Can't read variable data from file %s\n",
-			ctx->infilename);
-	return -1;
 }
 
 static int set_timestamp(EFI_TIME *timestamp)
@@ -554,7 +510,7 @@ int main(int argc, char **argv)
 		ctx->var_guid = default_guid;
 	}
 
-	if (read_var_data(ctx))
+	if (fileio_read_file(ctx, ctx->infilename, &ctx->data, &ctx->data_len))
 		return EXIT_FAILURE;
 
 	ctx->key = fileio_read_pkey(keyfilename);

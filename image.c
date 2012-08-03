@@ -43,6 +43,7 @@
 #include <ccan/build_assert/build_assert.h>
 #include <openssl/sha.h>
 
+#include "fileio.h"
 #include "image.h"
 
 #define DATA_DIR_CERT_TABLE	4
@@ -81,6 +82,7 @@ static int image_pecoff_parse(struct image *image)
 	struct cert_table_header *cert_table;
 	char nt_sig[] = {'P', 'E', 0, 0};
 	size_t size = image->size;
+	void *buf = image->buf;
 	uint32_t addr;
 
 	/* sanity checks */
@@ -89,7 +91,7 @@ static int image_pecoff_parse(struct image *image)
 		return -1;
 	}
 
-	image->doshdr = image->buf;
+	image->doshdr = buf;
 
 	if (image->doshdr->e_magic[0] != 0x4d
 			|| image->doshdr->e_magic[1] != 0x5a) {
@@ -109,7 +111,7 @@ static int image_pecoff_parse(struct image *image)
 		return -1;
 	}
 
-	image->pehdr = image->buf + addr;
+	image->pehdr = buf + addr;
 	if (memcmp(image->pehdr->nt_signature, nt_sig, sizeof(nt_sig))) {
 		fprintf(stderr, "Invalid PE header signature\n");
 		return -1;
@@ -146,7 +148,7 @@ static int image_pecoff_parse(struct image *image)
 
 	image->cert_table_size = image->data_dir_sigtable->size;
 	if (image->cert_table_size)
-		cert_table = image->buf + image->data_dir_sigtable->addr;
+		cert_table = buf + image->data_dir_sigtable->addr;
 	else
 		cert_table = NULL;
 
@@ -170,7 +172,6 @@ static int image_pecoff_parse(struct image *image)
 
 struct image *image_load(const char *filename)
 {
-	struct stat statbuf;
 	struct image *image;
 	int rc;
 
@@ -180,33 +181,9 @@ struct image *image_load(const char *filename)
 		return NULL;
 	}
 
-	image->fd = open(filename, O_RDONLY);
-	if (image->fd < 0) {
-		perror("open");
+	rc = fileio_read_file(image, filename, &image->buf, &image->size);
+	if (rc)
 		goto err;
-	}
-
-	rc = fstat(image->fd, &statbuf);
-	if (rc) {
-		perror("fstat");
-		goto err;
-	}
-
-	image->size = statbuf.st_size;
-
-	image->buf = talloc_size(image, image->size);
-	if (!image->buf) {
-		perror("talloc(buf)");
-		goto err;
-	}
-
-	if (!read_all(image->fd, image->buf, image->size)) {
-		perror("read_all");
-		fprintf(stderr, "error reading input file\n");
-		goto err;
-	}
-
-	lseek(image->fd, 0, SEEK_SET);
 
 	rc = image_pecoff_parse(image);
 	if (rc)
@@ -243,6 +220,7 @@ static void set_region_from_range(struct region *region, void *start, void *end)
 int image_find_regions(struct image *image)
 {
 	struct region *regions;
+	void *buf = image->buf;
 	int i, gap_warn;
 	uint32_t align;
 	size_t bytes;
@@ -263,7 +241,7 @@ int image_find_regions(struct image *image)
 
 	/* first region: beginning to checksum field */
 	regions = image->checksum_regions;
-	set_region_from_range(&regions[0], image->buf, image->checksum);
+	set_region_from_range(&regions[0], buf, image->checksum);
 	regions[0].name = "begin->cksum";
 	bytes += regions[0].size;
 
@@ -282,8 +260,7 @@ int image_find_regions(struct image *image)
 	set_region_from_range(&regions[2],
 				(void *)image->data_dir_sigtable
 					+ sizeof(struct data_dir_entry),
-				image->buf +
-				pehdr_u32(image->aouthdr->SizeOfHeaders));
+				buf + pehdr_u32(image->aouthdr->SizeOfHeaders));
 	regions[2].name = "datadir[CERT]->headers";
 	bytes += regions[2].size;
 
@@ -304,7 +281,7 @@ int image_find_regions(struct image *image)
 				image->n_checksum_regions);
 		regions = image->checksum_regions;
 
-		regions[i + 3].data = image->buf + file_offset;
+		regions[i + 3].data = buf + file_offset;
 		regions[i + 3].size = align_up(file_size, align);
 		regions[i + 3].name = talloc_strndup(image->checksum_regions,
 					image->scnhdr[i].s_name, 8);
@@ -315,14 +292,14 @@ int image_find_regions(struct image *image)
 			fprintf(stderr, "warning: gap in section table:\n");
 			fprintf(stderr, "    %-8s: 0x%08tx - 0x%08tx,\n",
 					regions[i+2].name,
-					regions[i+2].data - image->buf,
+					regions[i+2].data - buf,
 					regions[i+2].data +
-						regions[i+2].size - image->buf);
+						regions[i+2].size - buf);
 			fprintf(stderr, "    %-8s: 0x%08tx - 0x%08tx,\n",
 					regions[i+3].name,
-					regions[i+3].data - image->buf,
+					regions[i+3].data - buf,
 					regions[i+3].data +
-						regions[i+3].size - image->buf);
+						regions[i+3].size - buf);
 
 
 			gap_warn = 1;
