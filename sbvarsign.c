@@ -55,6 +55,7 @@
 #include <ccan/talloc/talloc.h>
 
 #include "efi-varauth.h"
+#include "fileio.h"
 
 static const char *toolname = "sbvarsign";
 
@@ -260,55 +261,6 @@ static int set_timestamp(EFI_TIME *timestamp)
 	timestamp->Second = tm->tm_sec;
 
 	return 0;
-}
-
-static int load_key(struct varsign_context *ctx, const char *filename)
-{
-	BIO *bio;
-
-	bio = BIO_new_file(filename, "r");
-	if (!bio)
-		goto err;
-
-	ctx->key = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
-	if (!ctx->key)
-		goto err;
-
-	BIO_free_all(bio);
-
-	return 0;
-
-err:
-	if (bio)
-		BIO_free_all(bio);
-	fprintf(stderr, "Can't load key from file '%s'\n", filename);
-	ERR_print_errors_fp(stderr);
-	return -1;
-}
-
-static int load_cert(struct varsign_context *ctx, const char *filename)
-{
-	BIO *bio;
-
-	bio = BIO_new_file(filename, "r");
-	if (!bio)
-		goto err;
-
-	ctx->cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
-	if (!ctx->cert)
-		goto err;
-
-	BIO_free_all(bio);
-
-	return 0;
-
-err:
-	if (bio)
-		BIO_free_all(bio);
-	fprintf(stderr, "Can't load certificate from file '%s'\n", filename);
-	ERR_print_errors_fp(stderr);
-	return -1;
-
 }
 
 static int add_auth_descriptor(struct varsign_context *ctx)
@@ -605,10 +557,12 @@ int main(int argc, char **argv)
 	if (read_var_data(ctx))
 		return EXIT_FAILURE;
 
-	if (load_key(ctx, keyfilename))
+	ctx->key = fileio_read_pkey(keyfilename);
+	if (!ctx->key)
 		return EXIT_FAILURE;
 
-	if (load_cert(ctx, certfilename))
+	ctx->cert = fileio_read_cert(certfilename);
+	if (!ctx->cert)
 		return EXIT_FAILURE;
 
 	/* do the signing */

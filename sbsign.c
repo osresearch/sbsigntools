@@ -53,6 +53,7 @@
 
 #include "idc.h"
 #include "image.h"
+#include "fileio.h"
 
 static const char *toolname = "sbsign";
 
@@ -185,20 +186,13 @@ int main(int argc, char **argv)
 	OpenSSL_add_all_digests();
 	OpenSSL_add_all_ciphers();
 
-	BIO *privkey_bio = BIO_new_file(keyfilename, "r");
-	EVP_PKEY *pkey = PEM_read_bio_PrivateKey(privkey_bio, NULL, NULL, NULL);
-	if (!pkey) {
-		fprintf(stderr, "error reading private key %s\n", keyfilename);
+	EVP_PKEY *pkey = fileio_read_pkey(keyfilename);
+	if (!pkey)
 		return EXIT_FAILURE;
-	}
 
-	BIO *cert_bio = BIO_new_file(certfilename, "r");
-	X509 *cert = PEM_read_bio_X509(cert_bio, NULL, NULL, NULL);
-
-	if (!cert) {
-		fprintf(stderr, "error reading certificate %s\n", certfilename);
+	X509 *cert = fileio_read_cert(certfilename);
+	if (!cert)
 		return EXIT_FAILURE;
-	}
 
 	const EVP_MD *md = EVP_get_digestbyname("SHA256");
 

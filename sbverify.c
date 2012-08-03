@@ -46,6 +46,7 @@
 
 #include "image.h"
 #include "idc.h"
+#include "fileio.h"
 
 #include <openssl/err.h>
 #include <openssl/bio.h>
@@ -90,34 +91,13 @@ static void version(void)
 int load_cert(X509_STORE *certs, const char *filename)
 {
 	X509 *cert;
-	BIO *bio;
 
-	bio = NULL;
-	cert = NULL;
-
-	bio = BIO_new_file(filename, "r");
-	if (!bio) {
-		fprintf(stderr, "Couldn't open file %s\n", filename);
-		goto err;
-	}
-
-	cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
-	if (!cert) {
-		fprintf(stderr, "Couldn't read certificate file %s\n",
-				filename);
-		goto err;
-	}
+	cert = fileio_read_cert(filename);
+	if (!cert)
+		return -1;
 
 	X509_STORE_add_cert(certs, cert);
 	return 0;
-
-err:
-	ERR_print_errors_fp(stderr);
-	if (cert)
-		X509_free(cert);
-	if (bio)
-		BIO_free(bio);
-	return -1;
 }
 
 static int load_image_signature_data(struct image *image,

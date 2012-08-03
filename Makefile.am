@@ -5,7 +5,7 @@ bin_PROGRAMS = sbsign sbverify sbattach sbvarsign
 
 coff_headers = coff/external.h coff/pe.h coff/i386.h coff/x86_64.h
 
-common_SOURCES = idc.c idc.h image.c image.h $(coff_headers)
+common_SOURCES = idc.c idc.h image.c image.h fileio.c fileio.h $(coff_headers)
 common_LDADD = lib/ccan/libccan.a $(libcrypto_LIBS)
 common_CFLAGS = -I$(srcdir)/lib/ccan/
 
@@ -21,7 +21,7 @@ sbattach_SOURCES = sbattach.c $(common_SOURCES)
 sbattach_LDADD = $(common_LDADD)
 sbattach_CFLAGS = $(AM_CFLAGS) $(common_CFLAGS)
 
-sbvarsign_SOURCES = sbvarsign.c
+sbvarsign_SOURCES = sbvarsign.c $(common_SOURCES)
 sbvarsign_LDADD = $(common_LDADD) $(uuid_LIBS)
 sbvarsign_CPPFLAGS = $(EFI_CPPFLAGS)
 sbvarsign_CFLAGS = $(AM_CFLAGS) $(uuid_CFLAGS) $(common_CFLAGS)
