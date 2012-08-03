@@ -390,6 +390,26 @@ int image_hash_sha256(struct image *image, uint8_t digest[])
 	return !rc;
 }
 
+int image_add_signature(struct image *image, void *sig, int size)
+{
+	/* we only support one signature at present */
+	if (image->sigbuf) {
+		fprintf(stderr, "warning: overwriting existing signature\n");
+		talloc_free(image->sigbuf);
+	}
+	image->sigbuf = sig;
+	image->sigsize = size;
+	return 0;
+}
+
+void image_remove_signature(struct image *image)
+{
+	if (image->sigbuf)
+		talloc_free(image->sigbuf);
+	image->sigbuf = NULL;
+	image->sigsize = 0;
+}
+
 int image_write(struct image *image, const char *filename)
 {
 	struct cert_table_header cert_table_header;

@@ -112,8 +112,8 @@ int main(int argc, char **argv)
 {
 	const char *keyfilename, *certfilename;
 	struct sign_context *ctx;
-	uint8_t *buf;
-	int rc, c;
+	uint8_t *buf, *tmp;
+	int rc, c, sigsize;
 
 	ctx = talloc_zero(NULL, struct sign_context);
 
@@ -220,11 +220,12 @@ int main(int argc, char **argv)
 	if (rc)
 		return EXIT_FAILURE;
 
-	ctx->image->sigsize = i2d_PKCS7(p7, NULL);
-	ctx->image->sigbuf = buf = talloc_array(ctx->image,
-			uint8_t, ctx->image->sigsize);
-	i2d_PKCS7(p7, &buf);
+	sigsize = i2d_PKCS7(p7, NULL);
+	tmp = buf = talloc_array(ctx->image, uint8_t, sigsize);
+	i2d_PKCS7(p7, &tmp);
 	ERR_print_errors_fp(stdout);
+
+	image_add_signature(ctx->image, buf, sigsize);
 
 	if (ctx->detached)
 		image_write_detached(ctx->image, ctx->outfilename);

@@ -133,11 +133,10 @@ static int attach_sig(struct image *image, const char *image_filename,
 		goto out;
 	}
 
-	image->sigbuf = sigbuf;
-	image->sigsize = size;
+	image_add_signature(image, sigbuf, size);
 
 	tmp_buf = sigbuf;
-	p7 = d2i_PKCS7(NULL, &tmp_buf, image->sigsize);
+	p7 = d2i_PKCS7(NULL, &tmp_buf, size);
 	if (!p7) {
 		fprintf(stderr, "Unable to parse signature data in file: %s\n",
 				sig_filename);
@@ -168,8 +167,7 @@ static int remove_sig(struct image *image, const char *image_filename)
 {
 	int rc;
 
-	image->sigbuf = NULL;
-	image->sigsize = 0;
+	image_remove_signature(image);
 
 	rc = image_write(image, image_filename);
 	if (rc)
