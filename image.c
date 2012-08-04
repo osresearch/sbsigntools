@@ -395,6 +395,7 @@ int image_write(struct image *image, const char *filename)
 	uint8_t pad[8];
 
 	is_signed = image->sigbuf && image->sigsize;
+	padlen = 0;
 
 	/* optionally update the image to contain signature data */
 	if (is_signed) {
