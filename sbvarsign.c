@@ -54,7 +54,7 @@
 #include <ccan/read_write_all/read_write_all.h>
 #include <ccan/talloc/talloc.h>
 
-#include "efi-varauth.h"
+#include "efivars.h"
 #include "fileio.h"
 
 static const char *toolname = "sbvarsign";
