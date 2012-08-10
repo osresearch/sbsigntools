@@ -117,7 +117,7 @@ static int image_pecoff_parse(struct image *image)
 		return -1;
 	}
 
-	if (pehdr_u16(image->pehdr->f_magic) != AMD64MAGIC) {
+	if (pehdr_u16(image->pehdr->f_magic) != IMAGE_FILE_MACHINE_AMD64) {
 		fprintf(stderr, "Invalid PE header magic for x86_64\n");
 		return -1;
 	}

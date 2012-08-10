@@ -37,7 +37,6 @@
 #include <bfd.h>
 #define DO_NOT_DEFINE_LINENO
 
-#include "coff/x86_64.h"
 #include "coff/external.h"
 #include "coff/pe.h"
 

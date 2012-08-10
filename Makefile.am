@@ -3,7 +3,7 @@ AM_CFLAGS = -Wall -Wextra --std=gnu99
 
 bin_PROGRAMS = sbsign sbverify sbattach sbvarsign sbsiglist
 
-coff_headers = coff/external.h coff/pe.h coff/i386.h coff/x86_64.h
+coff_headers = coff/external.h coff/pe.h
 
 common_SOURCES = idc.c idc.h image.c image.h fileio.c fileio.h $(coff_headers)
 common_LDADD = lib/ccan/libccan.a $(libcrypto_LIBS)
