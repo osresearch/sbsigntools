@@ -77,13 +77,65 @@ static uint16_t __pehdr_u16(char field[])
 #define pehdr_u32(f) __pehdr_u32(f + BUILD_ASSERT_OR_ZERO(sizeof(f) == 4))
 #define pehdr_u16(f) __pehdr_u16(f + BUILD_ASSERT_OR_ZERO(sizeof(f) == 2))
 
+/* Machine-specific PE/COFF parse functions. These parse the relevant a.out
+ * header for the machine type, and set the following members of struct image:
+ *   - aouthdr_size
+ *   - file_alignment
+ *   - header_size
+ *   - data_dir
+ *   - checksum
+ *
+ *  These functions require image->aouthdr to be set by the caller.
+ */
+static int image_pecoff_parse_32(struct image *image)
+{
+	if (image->aouthdr.aout_32->standard.magic[0] != 0x0b ||
+			image->aouthdr.aout_32->standard.magic[1] != 0x01) {
+		fprintf(stderr, "Invalid a.out machine type\n");
+		return -1;
+	}
+
+	image->aouthdr_size = sizeof(*image->aouthdr.aout_32);
+
+	image->file_alignment =
+		pehdr_u32(image->aouthdr.aout_32->FileAlignment);
+	image->header_size =
+		pehdr_u32(image->aouthdr.aout_32->SizeOfHeaders);
+
+	image->data_dir = (void *)image->aouthdr.aout_32->DataDirectory;
+	image->checksum = (uint32_t *)image->aouthdr.aout_32->CheckSum;
+	return 0;
+}
+
+static int image_pecoff_parse_64(struct image *image)
+{
+	if (image->aouthdr.aout_64->standard.magic[0] != 0x0b ||
+			image->aouthdr.aout_64->standard.magic[1] != 0x02) {
+		fprintf(stderr, "Invalid a.out machine type\n");
+		return -1;
+	}
+
+	image->aouthdr_size = sizeof(*image->aouthdr.aout_64);
+
+	image->file_alignment =
+		pehdr_u32(image->aouthdr.aout_64->FileAlignment);
+	image->header_size =
+		pehdr_u32(image->aouthdr.aout_64->SizeOfHeaders);
+
+	image->data_dir = (void *)image->aouthdr.aout_64->DataDirectory;
+	image->checksum = (uint32_t *)image->aouthdr.aout_64->CheckSum;
+	return 0;
+}
+
 static int image_pecoff_parse(struct image *image)
 {
 	struct cert_table_header *cert_table;
 	char nt_sig[] = {'P', 'E', 0, 0};
 	size_t size = image->size;
 	void *buf = image->buf;
+	uint16_t magic;
 	uint32_t addr;
+	int rc;
 
 	/* sanity checks */
 	if (size < sizeof(*image->doshdr)) {
@@ -117,34 +169,39 @@ static int image_pecoff_parse(struct image *image)
 		return -1;
 	}
 
-	if (pehdr_u16(image->pehdr->f_magic) != IMAGE_FILE_MACHINE_AMD64) {
-		fprintf(stderr, "Invalid PE header magic for x86_64\n");
+	/* a.out header directly follows PE header */
+	image->aouthdr.addr = image->pehdr + 1;
+	magic = pehdr_u16(image->pehdr->f_magic);
+
+	if (magic == IMAGE_FILE_MACHINE_AMD64) {
+		rc = image_pecoff_parse_64(image);
+
+	} else if (magic == IMAGE_FILE_MACHINE_I386) {
+		rc = image_pecoff_parse_32(image);
+
+	} else {
+		fprintf(stderr, "Invalid PE header magic\n");
 		return -1;
 	}
 
-	if (pehdr_u16(image->pehdr->f_opthdr) != sizeof(*image->aouthdr)) {
+	if (rc) {
+		fprintf(stderr, "Error parsing a.out header\n");
+		return -1;
+	}
+
+	/* we have the data_dir now, from parsing the a.out header */
+	image->data_dir_sigtable = &image->data_dir[DATA_DIR_CERT_TABLE];
+
+	if (pehdr_u16(image->pehdr->f_opthdr) != image->aouthdr_size) {
 		fprintf(stderr, "Invalid a.out header size\n");
 		return -1;
 	}
 
 	if (image->size < sizeof(*image->doshdr) + sizeof(*image->pehdr)
-			+ sizeof(*image->aouthdr)) {
+			+ image->aouthdr_size) {
 		fprintf(stderr, "file is too small for a.out header\n");
 		return -1;
 	}
-
-	/* a.out header directly follows PE header */
-	image->aouthdr = (void *)(image->pehdr+1);
-
-	if (image->aouthdr->standard.magic[0] != 0x0b ||
-			image->aouthdr->standard.magic[1] != 0x02) {
-		fprintf(stderr, "Invalid a.out machine type\n");
-		return -1;
-	}
-
-	image->data_dir = (void *)image->aouthdr->DataDirectory;
-	image->data_dir_sigtable = &image->data_dir[DATA_DIR_CERT_TABLE];
-	image->checksum = (uint32_t *)image->aouthdr->CheckSum;
 
 	image->cert_table_size = image->data_dir_sigtable->size;
 	if (image->cert_table_size)
@@ -165,7 +222,7 @@ static int image_pecoff_parse(struct image *image)
 	}
 
 	image->sections = pehdr_u16(image->pehdr->f_nscns);
-	image->scnhdr = (void *)(image->aouthdr+1);
+	image->scnhdr = image->aouthdr.addr + image->aouthdr_size;
 
 	return 0;
 }
@@ -222,11 +279,9 @@ int image_find_regions(struct image *image)
 	struct region *regions;
 	void *buf = image->buf;
 	int i, gap_warn;
-	uint32_t align;
 	size_t bytes;
 
 	gap_warn = 0;
-	align = pehdr_u32(image->aouthdr->FileAlignment);
 
 	/* now we know where the checksum and cert table data is, we can
 	 * construct regions that need to be signed */
@@ -260,7 +315,7 @@ int image_find_regions(struct image *image)
 	set_region_from_range(&regions[2],
 				(void *)image->data_dir_sigtable
 					+ sizeof(struct data_dir_entry),
-				buf + pehdr_u32(image->aouthdr->SizeOfHeaders));
+				buf + image->header_size);
 	regions[2].name = "datadir[CERT]->headers";
 	bytes += regions[2].size;
 
@@ -282,7 +337,8 @@ int image_find_regions(struct image *image)
 		regions = image->checksum_regions;
 
 		regions[i + 3].data = buf + file_offset;
-		regions[i + 3].size = align_up(file_size, align);
+		regions[i + 3].size = align_up(file_size,
+					image->file_alignment);
 		regions[i + 3].name = talloc_strndup(image->checksum_regions,
 					image->scnhdr[i].s_name, 8);
 		bytes += regions[i + 3].size;

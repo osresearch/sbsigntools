@@ -54,7 +54,12 @@ struct image {
 	uint32_t	*checksum;
 	struct external_PEI_DOS_hdr *doshdr;
 	struct external_PEI_IMAGE_hdr *pehdr;
-	PEPAOUTHDR	*aouthdr;
+	union	{
+		PEPAOUTHDR	*aout_64;
+		PEAOUTHDR	*aout_32;
+		void		*addr;
+	} aouthdr;
+	unsigned int	 aouthdr_size;
 	struct data_dir_entry *data_dir;
 	struct data_dir_entry *data_dir_sigtable;
 	struct external_scnhdr *scnhdr;
@@ -62,6 +67,11 @@ struct image {
 
 	void		*cert_table;
 	int		cert_table_size;
+
+	/* We cache a few values from the aout header, so we don't have to
+	 * keep checking whether to use the 32- or 64-bit version */
+	uint32_t	file_alignment;
+	uint32_t	header_size;
 
 	/* Regions that are included in the image hash: populated
 	 * during image parsing, then used during the hash process.
