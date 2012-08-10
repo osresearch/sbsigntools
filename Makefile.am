@@ -1,7 +1,7 @@
 
 AM_CFLAGS = -Wall -Wextra --std=gnu99
 
-bin_PROGRAMS = sbsign sbverify sbattach sbvarsign
+bin_PROGRAMS = sbsign sbverify sbattach sbvarsign sbsiglist
 
 coff_headers = coff/external.h coff/pe.h coff/i386.h coff/x86_64.h
 
@@ -26,6 +26,10 @@ sbvarsign_LDADD = $(common_LDADD) $(uuid_LIBS)
 sbvarsign_CPPFLAGS = $(EFI_CPPFLAGS)
 sbvarsign_CFLAGS = $(AM_CFLAGS) $(uuid_CFLAGS) $(common_CFLAGS)
 
+sbsiglist_SOURCES = sbsiglist.c $(common_SOURCES)
+sbsiglist_LDADD = $(common_LDADD) $(uuid_LIBS)
+sbsiglist_CPPFLAGS = $(EFI_CPPFLAGS)
+sbsiglist_CFLAGS = $(AM_CFLAGS) $(common_CFLAGS)
 
 man1_MANS = docs/sbsign.1 docs/sbverify.1 docs/sbattach.1
 
