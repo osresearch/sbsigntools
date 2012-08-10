@@ -135,3 +135,23 @@ out:
 	return rc;
 
 }
+
+int fileio_write_file(const char *filename, uint8_t *buf, size_t len)
+{
+	int fd;
+
+	fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd < 0) {
+		perror("open");
+		return -1;
+	}
+
+	if (!write_all(fd, buf, len)) {
+		perror("write_all");
+		close(fd);
+		return -1;
+	}
+
+	close(fd);
+	return 0;
+}

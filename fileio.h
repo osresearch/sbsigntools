@@ -42,6 +42,7 @@ X509 *fileio_read_cert(const char *filename);
 
 int fileio_read_file(void *ctx, const char *filename,
 		uint8_t **out_buf, size_t *out_len);
+int fileio_write_file(const char *filename, uint8_t *buf, size_t len);
 
 #endif /* FILEIO_H */
 
