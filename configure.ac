@@ -5,7 +5,7 @@ AM_INIT_AUTOMAKE()
 AC_PREREQ(2.60)
 
 AC_CONFIG_HEADERS(config.h)
-AC_CONFIG_SRCDIR(sbsign.c)
+AC_CONFIG_SRCDIR(src/sbsign.c)
 
 AM_PROG_AS
 AC_PROG_CC
@@ -73,5 +73,6 @@ AC_CHECK_HEADERS([efi.h], [], [], $EFI_INCLUDES)
 CPPFLAGS="$CPPFLAGS_save"
 AC_SUBST(EFI_CPPFLAGS, $EFI_CPPFLAGS)
 
-AC_CONFIG_FILES([Makefile lib/ccan/Makefile tests/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile lib/ccan/Makefile]
+		[docs/Makefile tests/Makefile])
 AC_OUTPUT

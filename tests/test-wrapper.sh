@@ -3,7 +3,7 @@
 # set a few global variables that may be used by the test
 basedir=$(cd $srcdir && pwd)
 datadir=$(pwd)
-bindir="$datadir/.."
+bindir="$datadir/../src"
 
 sbsign=$bindir/sbsign
 sbverify=$bindir/sbverify
