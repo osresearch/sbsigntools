@@ -1,7 +1,5 @@
 #!/bin/bash -e
 
-. "$srcdir/common.sh"
-
 signed="test.signed"
 sig="test.sig"
 

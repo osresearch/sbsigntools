@@ -1,7 +1,5 @@
 #!/bin/bash -e
 
-. "$srcdir/common.sh"
-
 # Parse the data directory of a PE/COFF file and returns two hex values:
 # the file offset and size of the signature table.
 function sigtable_params() {

@@ -1,7 +1,5 @@
 #!/bin/bash -e
 
-. "$srcdir/common.sh"
-
 invsig="test.invsig"
 dd if=/dev/zero of="$invsig" bs=1 count=1k
 tmp_image=test.pecoff
