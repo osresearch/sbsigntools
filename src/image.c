@@ -511,16 +511,5 @@ out:
 
 int image_write_detached(struct image *image, const char *filename)
 {
-	int fd, rc;
-
-	fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	if (fd < 0) {
-		perror("open");
-		return -1;
-	}
-
-	rc = write_all(fd, image->sigbuf, image->sigsize);
-
-	close(fd);
-	return !rc;
+	return fileio_write_file(filename, image->sigbuf, image->sigsize);
 }
