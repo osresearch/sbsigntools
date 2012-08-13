@@ -98,7 +98,6 @@ struct cert_table_header {
 
 struct image *image_load(const char *filename);
 
-int image_find_regions(struct image *image);
 int image_hash_sha256(struct image *image, uint8_t digest[]);
 int image_add_signature(struct image *, void *sig, int size);
 void image_remove_signature(struct image *image);

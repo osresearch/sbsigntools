@@ -227,31 +227,6 @@ static int image_pecoff_parse(struct image *image)
 	return 0;
 }
 
-struct image *image_load(const char *filename)
-{
-	struct image *image;
-	int rc;
-
-	image = talloc(NULL, struct image);
-	if (!image) {
-		perror("talloc(image)");
-		return NULL;
-	}
-
-	rc = fileio_read_file(image, filename, &image->buf, &image->size);
-	if (rc)
-		goto err;
-
-	rc = image_pecoff_parse(image);
-	if (rc)
-		goto err;
-
-	return image;
-err:
-	talloc_free(image);
-	return NULL;
-}
-
 static int align_up(int size, int align)
 {
 	return (size + align - 1) & ~(align - 1);
@@ -274,7 +249,7 @@ static void set_region_from_range(struct region *region, void *start, void *end)
 	region->size = end - start;
 }
 
-int image_find_regions(struct image *image)
+static int image_find_regions(struct image *image)
 {
 	struct region *regions;
 	void *buf = image->buf;
@@ -389,6 +364,35 @@ int image_find_regions(struct image *image)
 	}
 
 	return 0;
+}
+
+struct image *image_load(const char *filename)
+{
+	struct image *image;
+	int rc;
+
+	image = talloc(NULL, struct image);
+	if (!image) {
+		perror("talloc(image)");
+		return NULL;
+	}
+
+	rc = fileio_read_file(image, filename, &image->buf, &image->size);
+	if (rc)
+		goto err;
+
+	rc = image_pecoff_parse(image);
+	if (rc)
+		goto err;
+
+	rc = image_find_regions(image);
+	if (rc)
+		goto err;
+
+	return image;
+err:
+	talloc_free(image);
+	return NULL;
 }
 
 int image_hash_sha256(struct image *image, uint8_t digest[])

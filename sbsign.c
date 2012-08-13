@@ -180,8 +180,6 @@ int main(int argc, char **argv)
 
 	talloc_steal(ctx, ctx->image);
 
-	image_find_regions(ctx->image);
-
 	ERR_load_crypto_strings();
 	OpenSSL_add_all_digests();
 	OpenSSL_add_all_ciphers();
