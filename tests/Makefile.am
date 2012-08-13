@@ -54,7 +54,8 @@ TESTS = sign-verify.sh \
 	sign-invalidattach-verify.sh \
 	cert-table-header.sh \
 	resign-warning.sh \
-	reattach-warning.sh
+	reattach-warning.sh \
+	detach-remove.sh
 
 TEST_EXTENSIONS = .sh
 SH_LOG_COMPILER = TEST_ARCHES="$(test_arches)" $(srcdir)/test-wrapper.sh

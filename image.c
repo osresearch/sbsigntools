@@ -251,7 +251,7 @@ static void set_region_from_range(struct region *region, void *start, void *end)
 
 static int image_find_regions(struct image *image)
 {
-	struct region *regions;
+	struct region *regions, *r;
 	void *buf = image->buf;
 	int i, gap_warn;
 	size_t bytes;
@@ -360,8 +360,11 @@ static int image_find_regions(struct image *image)
 		fprintf(stderr, "warning: data remaining[%zd vs %zd]: gaps "
 				"between PE/COFF sections?\n",
 				bytes + image->cert_table_size, image->size);
-		
 	}
+
+	/* record the size of non-signature data */
+	r = &image->checksum_regions[image->n_checksum_regions - 1];
+	image->data_size = (r->data - (void *)image->buf) + r->size;
 
 	return 0;
 }
@@ -482,7 +485,7 @@ int image_write(struct image *image, const char *filename)
 		return -1;
 	}
 
-	rc = write_all(fd, image->buf, image->size);
+	rc = write_all(fd, image->buf, image->data_size);
 	if (!rc)
 		goto out;
 	if (!is_signed)

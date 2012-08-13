@@ -50,6 +50,9 @@ struct image {
 	uint8_t		*buf;
 	size_t		size;
 
+	/* size of the image, without signature */
+	size_t		data_size;
+
 	/* Pointers to interesting parts of the image */
 	uint32_t	*checksum;
 	struct external_PEI_DOS_hdr *doshdr;
