@@ -151,7 +151,7 @@ static int siglist_create(struct siglist_context *ctx)
 	siglist->SignatureType = ctx->type->guid;
 	siglist->SignatureListSize = size;
 	siglist->SignatureHeaderSize = 0;
-	siglist->SignatureSize = ctx->data_len;
+	siglist->SignatureSize = ctx->data_len + sizeof(*sigdata);
 
 	sigdata->SignatureOwner = ctx->owner;
 
