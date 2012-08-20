@@ -1,5 +1,5 @@
 
-bin_PROGRAMS = sbsign sbverify sbattach sbvarsign sbsiglist
+bin_PROGRAMS = sbsign sbverify sbattach sbvarsign sbsiglist sbkeysync
 
 coff_headers = coff/external.h coff/pe.h
 AM_CFLAGS = -Wall -Wextra --std=gnu99
@@ -30,3 +30,8 @@ sbsiglist_SOURCES = sbsiglist.c $(common_SOURCES)
 sbsiglist_LDADD = $(common_LDADD) $(uuid_LIBS)
 sbsiglist_CPPFLAGS = $(EFI_CPPFLAGS)
 sbsiglist_CFLAGS = $(AM_CFLAGS) $(common_CFLAGS)
+
+sbkeysync_SOURCES = sbkeysync.c $(common_SOURCES)
+sbkeysync_LDADD = $(common_LDADD) $(uuid_LIBS)
+sbkeysync_CPPFLAGS = $(EFI_CPPFLAGS)
+sbkeysync_CFLAGS = $(AM_CFLAGS) $(common_CFLAGS)
