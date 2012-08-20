@@ -285,11 +285,16 @@ static int read_efivars_key_database(struct sync_context *ctx,
 static void print_key_database(struct key_database *kdb)
 {
 	struct key *key;
+	int i;
 
 	printf("kdb %s\n", kdb->name);
 
-	list_for_each(&kdb->keys, key, list)
-		printf("  id: %p, %d bytes\n", key->id,  key->id_len);
+	list_for_each(&kdb->keys, key, list) {
+		printf("  %d bytes: [ ", key->id_len);
+		for (i = 0; i < key->id_len; i++)
+			printf("0x%02x ", key->id[i]);
+		printf("]\n");
+	}
 }
 
 static int read_key_databases(struct sync_context *ctx)
