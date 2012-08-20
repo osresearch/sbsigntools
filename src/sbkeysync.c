@@ -57,7 +57,6 @@
 	{ 0xd719b2cb, 0x3d3a, 0x4596, \
 	{ 0xa3, 0xbc, 0xda, 0xd0, 0x0e, 0x67, 0x65, 0x6f } }
 
-static const char *efivars_mountpoint = EFIVARS_MOUNTPOINT;
 static const char *toolname = "sbkeysync";
 
 enum sigdb_type {
@@ -110,6 +109,7 @@ struct key_database {
 };
 
 struct sync_context {
+	const char		*efivars_dir;
 	struct key_database	*kek;
 	struct key_database	*db;
 	struct key_database	*dbx;
@@ -309,7 +309,7 @@ static int read_efivars_key_database(struct sync_context *ctx,
 
 	guid_to_str(&desc->guid, guid_str);
 
-	filename = talloc_asprintf(ctx, "%s/%s-%s", efivars_mountpoint,
+	filename = talloc_asprintf(ctx, "%s/%s-%s", ctx->efivars_dir,
 					desc->name, guid_str);
 
 	if (fileio_read_file_noerror(ctx, filename, &buf, &len))
@@ -373,12 +373,12 @@ static int read_key_databases(struct sync_context *ctx)
 	return 0;
 }
 
-static int check_efivars_mount(void)
+static int check_efivars_mount(const char *mountpoint)
 {
 	struct statfs statbuf;
 	int rc;
 
-	rc = statfs(efivars_mountpoint, &statbuf);
+	rc = statfs(mountpoint, &statbuf);
 	if (rc)
 		return -1;
 
@@ -391,13 +391,18 @@ static int check_efivars_mount(void)
 static struct option options[] = {
 	{ "help", no_argument, NULL, 'h' },
 	{ "version", no_argument, NULL, 'V' },
+	{ "efivars-path", required_argument, NULL, 'e' },
 	{ NULL, 0, NULL, 0 },
 };
 
 static void usage(void)
 {
 	printf("Usage: %s [options]\n"
-		"Update EFI key databases from the filesystem\n",
+		"Update EFI key databases from the filesystem\n"
+		"\n"
+		"Options:\n"
+		"\t--efivars-path <dir>  Path to efivars mountpoint\n"
+		"                        (or regular directory for testing)\n",
 		toolname);
 }
 
@@ -410,13 +415,18 @@ int main(int argc, char **argv)
 {
 	struct sync_context *ctx;
 
+	ctx = talloc_zero(NULL, struct sync_context);
+
 	for (;;) {
 		int idx, c;
-		c = getopt_long(argc, argv, "a:d:rhV", options, &idx);
+		c = getopt_long(argc, argv, "e:hV", options, &idx);
 		if (c == -1)
 			break;
 
 		switch (c) {
+		case 'e':
+			ctx->efivars_dir = optarg;
+			break;
 		case 'V':
 			version();
 			return EXIT_SUCCESS;
@@ -431,16 +441,18 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	if (check_efivars_mount()) {
-		fprintf(stderr, "Can't access efivars filesystem, aborting\n");
-		return EXIT_FAILURE;
-	}
-
 	ERR_load_crypto_strings();
 	OpenSSL_add_all_digests();
 	OpenSSL_add_all_ciphers();
 
-	ctx = talloc(NULL, struct sync_context);
+	if (!ctx->efivars_dir) {
+		ctx->efivars_dir = EFIVARS_MOUNTPOINT;
+		if (check_efivars_mount(ctx->efivars_dir)) {
+			fprintf(stderr, "Can't access efivars filesystem "
+					"at %s, aborting\n", ctx->efivars_dir);
+			return EXIT_FAILURE;
+		}
+	}
 
 	read_key_databases(ctx);
 
