@@ -44,6 +44,9 @@
 #include <ccan/array_size/array_size.h>
 #include <ccan/talloc/talloc.h>
 
+#include <openssl/x509.h>
+#include <openssl/err.h>
+
 #include "fileio.h"
 #include "efivars.h"
 
@@ -142,8 +145,47 @@ static int sha256_key_id(void *ctx, EFI_SIGNATURE_DATA *sigdata,
 	return 0;
 }
 
+static int x509_key_id(void *ctx, EFI_SIGNATURE_DATA *sigdata,
+		size_t sigdata_datalen, uint8_t **buf, int *len)
+{
+	ASN1_INTEGER *serial;
+	const uint8_t *tmp;
+	uint8_t *tmp_buf;
+	int tmp_len, rc;
+	X509 *x509;
+
+	rc = -1;
+
+	tmp = sigdata->SignatureData;
+
+	x509 = d2i_X509(NULL, &tmp, sigdata_datalen);
+	if (!x509)
+		return -1;
+
+	/* we use the X509 serial number as the key ID */
+	if (!x509->cert_info || !x509->cert_info->serialNumber)
+		goto out;
+
+	serial = x509->cert_info->serialNumber;
+
+	tmp_len = ASN1_STRING_length(serial);
+	tmp_buf = talloc_array(ctx, uint8_t, tmp_len);
+
+	memcpy(tmp_buf, ASN1_STRING_data(serial), tmp_len);
+
+	*buf = tmp_buf;
+	*len = tmp_len;
+
+	rc = 0;
+
+out:
+	X509_free(x509);
+	return rc;
+}
+
 struct cert_type cert_types[] = {
 	{ EFI_CERT_SHA256_GUID, sha256_key_id },
+	{ EFI_CERT_X509_GUID, x509_key_id },
 };
 
 static int guidcmp(const EFI_GUID *a, const EFI_GUID *b)
@@ -393,6 +435,10 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Can't access efivars filesystem, aborting\n");
 		return EXIT_FAILURE;
 	}
+
+	ERR_load_crypto_strings();
+	OpenSSL_add_all_digests();
+	OpenSSL_add_all_ciphers();
 
 	ctx = talloc(NULL, struct sync_context);
 
