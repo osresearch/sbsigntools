@@ -34,7 +34,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
 #include <sys/statfs.h>
+#include <sys/types.h>
 
 #include <getopt.h>
 
@@ -77,12 +79,10 @@ struct efi_sigdb_desc efi_sigdb_descs[] = {
 	{ SIGDB_DBX, "dbx", EFI_IMAGE_SECURITY_DATABASE_GUID },
 };
 
-#if 0
-static const char *keystores[] = {
-	"/usr/share/secureboot/keys",
+static const char *keystore_roots[] = {
 	"/etc/secureboot/keys",
+	"/usr/share/secureboot/keys",
 };
-#endif
 
 typedef int (*key_id_func)(void *, EFI_SIGNATURE_DATA *, size_t,
 				uint8_t **, int *);
@@ -108,11 +108,23 @@ struct key_database {
 	struct list_head	keys;
 };
 
+struct keystore_entry {
+	const char		*name;
+	uint8_t			*data;
+	size_t			len;
+	struct list_node	list;
+};
+
+struct keystore {
+	struct list_head	keys;
+};
+
 struct sync_context {
 	const char		*efivars_dir;
 	struct key_database	*kek;
 	struct key_database	*db;
 	struct key_database	*dbx;
+	struct keystore		*keystore;
 };
 
 #define GUID_STRLEN (8 + 1 + 4 + 1 + 4 + 1 + 4 + 1 + 12 + 1)
@@ -388,6 +400,112 @@ static int check_efivars_mount(const char *mountpoint)
 	return 0;
 }
 
+/* for each root directory, top-level first:
+ *  for each db/dbx/KEK:
+ *   for each file:
+ *     if file exists in keystore, skip
+ *     add file to keystore
+ */
+
+static int keystore_entry_read(struct keystore_entry *ke, const char *root)
+{
+	const char *path;
+
+	path = talloc_asprintf(ke, "%s/%s", root, ke->name);
+
+	if (fileio_read_file(ke, path, &ke->data, &ke->len)) {
+		talloc_free(ke);
+		return -1;
+	}
+
+	talloc_free(path);
+
+	return 0;
+}
+
+static bool keystore_contains_file(struct keystore *keystore,
+		const char *filename)
+{
+	struct keystore_entry *ke;
+
+	list_for_each(&keystore->keys, ke, list) {
+		if (!strcmp(ke->name, filename))
+			return true;
+	}
+
+	return false;
+}
+
+static int update_keystore(struct keystore *keystore, const char *root)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(efi_sigdb_descs); i++) {
+		const char *dirname, *filename;
+		struct dirent *dirent;
+		DIR *dir;
+
+		dirname = talloc_asprintf(keystore, "%s/%s", root,
+					efi_sigdb_descs[i].name);
+
+		dir = opendir(dirname);
+		if (!dir)
+			continue;
+
+		for (dirent = readdir(dir); dirent; dirent = readdir(dir)) {
+			struct keystore_entry *ke;
+
+			if (dirent->d_name[0] == '.')
+				continue;
+
+			filename = talloc_asprintf(dirname, "%s/%s",
+					efi_sigdb_descs[i].name,
+					dirent->d_name);
+
+			if (keystore_contains_file(keystore, filename))
+				continue;
+
+			ke = talloc(keystore, struct keystore_entry);
+			ke->name = filename;
+			talloc_steal(ke, ke->name);
+
+			if (keystore_entry_read(ke, root))
+				talloc_free(ke);
+			else
+				list_add(&keystore->keys, &ke->list);
+		}
+
+		closedir(dir);
+		talloc_free(dirname);
+	}
+	return 0;
+}
+
+static int read_keystore(struct sync_context *ctx)
+{
+	struct keystore *keystore;
+	unsigned int i;
+
+	keystore = talloc(ctx, struct keystore);
+	list_head_init(&keystore->keys);
+
+	for (i = 0; i < ARRAY_SIZE(keystore_roots); i++) {
+		update_keystore(keystore, keystore_roots[i]);
+	}
+
+	ctx->keystore = keystore;
+
+	return 0;
+}
+
+static void print_keystore(struct keystore *keystore)
+{
+	struct keystore_entry *ke;
+
+	list_for_each(&keystore->keys, ke, list)
+		printf(" %s [%zd bytes]\n", ke->name, ke->len);
+}
+
 static struct option options[] = {
 	{ "help", no_argument, NULL, 'h' },
 	{ "version", no_argument, NULL, 'V' },
@@ -455,6 +573,8 @@ int main(int argc, char **argv)
 	}
 
 	read_key_databases(ctx);
+	read_keystore(ctx);
+	print_keystore(ctx->keystore);
 
 	return EXIT_SUCCESS;
 }
