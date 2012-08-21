@@ -85,14 +85,14 @@ struct cert_type {
 };
 
 struct key {
-	EFI_GUID		type;
-	int			id_len;
-	uint8_t			*id;
+	EFI_GUID			type;
+	int				id_len;
+	uint8_t				*id;
 
-	size_t			len;
-	uint8_t			*data;
+	struct list_node		list;
 
-	struct list_node	list;
+	/* set for keys loaded from a filesystem keystore */
+	struct fs_keystore_entry	*keystore_entry;
 };
 
 struct key_database {
@@ -102,11 +102,12 @@ struct key_database {
 };
 
 struct fs_keystore_entry {
-	const char		*root;
-	const char		*name;
-	uint8_t			*data;
-	size_t			len;
-	struct list_node	list;
+	const struct key_database_type	*type;
+	const char			*root;
+	const char			*name;
+	uint8_t				*data;
+	size_t				len;
+	struct list_node		list;
 };
 
 struct fs_keystore {
@@ -318,7 +319,129 @@ static int read_firmware_key_database(struct key_database *kdb,
 	return 0;
 }
 
-static int read_firmware_key_databases(struct sync_context *ctx)
+struct keystore_add_ctx {
+	struct fs_keystore *keystore;
+	struct fs_keystore_entry *ke;
+	struct key_database *kdb;
+};
+
+static int keystore_add_key(EFI_SIGNATURE_DATA *sigdata, int len,
+		const EFI_GUID *type, void *arg)
+{
+	struct keystore_add_ctx *add_ctx = arg;
+	struct key *key;
+	int rc;
+
+	key = talloc(add_ctx->kdb, struct key);
+	key->keystore_entry = add_ctx->ke;
+	key->type = *type;
+
+	rc = key_id(key, type, sigdata->SignatureData, len,
+			&key->id, &key->id_len);
+
+	if (rc) {
+		talloc_free(key);
+		return 0;
+	}
+
+	/* add a reference to the data: we don't want it to be
+	 * deallocated if the keystore is deallocated before the
+	 * struct key. */
+	talloc_reference(key, add_ctx->ke->data);
+	list_add(&add_ctx->kdb->filesystem_keys, &key->list);
+
+	return 0;
+}
+
+static void __attribute__((format(printf, 2, 3))) print_keystore_key_error(
+		struct fs_keystore_entry *ke, const char *fmt, ...)
+{
+	char *errstr;
+	va_list ap;
+
+	va_start(ap, fmt);
+	errstr = talloc_vasprintf(ke, fmt, ap);
+
+	fprintf(stderr, "Invalid key %s/%s\n - %s\n", ke->root, ke->name,
+			errstr);
+
+	talloc_free(errstr);
+	va_end(ap);
+}
+
+static int read_keystore_key_database(struct key_database *kdb,
+		struct fs_keystore *keystore)
+{
+	EFI_GUID cert_type_pkcs7 = EFI_CERT_TYPE_PKCS7_GUID;
+	EFI_VARIABLE_AUTHENTICATION_2 *auth;
+	struct keystore_add_ctx add_ctx;
+	struct fs_keystore_entry *ke;
+	int rc;
+
+	add_ctx.keystore = keystore;
+	add_ctx.kdb = kdb;
+
+	list_for_each(&keystore->keys, ke, list) {
+		unsigned int len;
+		void *buf;
+
+		if (ke->len == 0)
+			continue;
+
+		if (ke->type != kdb->type)
+			continue;
+
+		/* parse the three data structures:
+		 *  EFI_VARIABLE_AUTHENTICATION_2 token
+		 *  EFI_SIGNATURE_LIST
+		 *  EFI_SIGNATURE_DATA
+		 * ensuring that we have enough data for each
+		 */
+
+		buf = ke->data;
+		len = ke->len;
+
+		if (len < sizeof(*auth)) {
+			print_keystore_key_error(ke, "does not contain an "
+				"EFI_VARIABLE_AUTHENTICATION_2 descriptor");
+			continue;
+		}
+
+		auth = buf;
+
+		if (guidcmp(&auth->AuthInfo.CertType, &cert_type_pkcs7)) {
+			print_keystore_key_error(ke, "unknown cert type");
+			continue;
+		}
+
+		if (auth->AuthInfo.Hdr.dwLength > len) {
+			print_keystore_key_error(ke,
+					"invalid WIN_CERTIFICATE length");
+			continue;
+		}
+
+		/* the dwLength field includes the size of the WIN_CERTIFICATE,
+		 * but not the other data in the EFI_VARIABLE_AUTHENTICATION_2
+		 * descriptor */
+		buf += sizeof(*auth) - sizeof(auth->AuthInfo) +
+			auth->AuthInfo.Hdr.dwLength;
+		len -= sizeof(*auth) - sizeof(auth->AuthInfo) +
+			auth->AuthInfo.Hdr.dwLength;
+
+		add_ctx.ke = ke;
+		rc = sigdb_iterate(buf, len, keystore_add_key, &add_ctx);
+		if (rc) {
+			print_keystore_key_error(ke, "error parsing "
+					"EFI_SIGNATURE_LIST");
+			continue;
+		}
+
+	}
+
+	return 0;
+}
+
+static int read_key_databases(struct sync_context *ctx)
 {
 	struct key_database *kdbs[] = {
 		ctx->kek,
@@ -330,6 +453,7 @@ static int read_firmware_key_databases(struct sync_context *ctx)
 	for (i = 0; i < ARRAY_SIZE(kdbs); i++) {
 		struct key_database *kdb = kdbs[i];
 		read_firmware_key_database(kdb, ctx->efivars_dir);
+		read_keystore_key_database(kdb, ctx->fs_keystore);
 	}
 
 	return 0;
@@ -441,6 +565,7 @@ static int update_keystore(struct fs_keystore *keystore, const char *root)
 			ke = talloc(keystore, struct fs_keystore_entry);
 			ke->name = filename;
 			ke->root = root;
+			ke->type = &keydb_types[i];
 			talloc_steal(ke, ke->name);
 
 			if (keystore_entry_read(ke))
@@ -604,8 +729,8 @@ int main(int argc, char **argv)
 	}
 
 
-	read_firmware_key_databases(ctx);
 	read_keystore(ctx);
+	read_key_databases(ctx);
 
 	if (ctx->verbose) {
 		print_key_databases(ctx);
