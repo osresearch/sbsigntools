@@ -79,7 +79,7 @@ struct efi_sigdb_desc efi_sigdb_descs[] = {
 	{ SIGDB_DBX, "dbx", EFI_IMAGE_SECURITY_DATABASE_GUID },
 };
 
-static const char *keystore_roots[] = {
+static const char *default_keystore_dirs[] = {
 	"/etc/secureboot/keys",
 	"/usr/share/secureboot/keys",
 };
@@ -125,6 +125,8 @@ struct sync_context {
 	struct key_database	*db;
 	struct key_database	*dbx;
 	struct keystore		*keystore;
+	const char		**keystore_dirs;
+	unsigned int		n_keystore_dirs;
 	bool			verbose;
 };
 
@@ -494,8 +496,8 @@ static int read_keystore(struct sync_context *ctx)
 	keystore = talloc(ctx, struct keystore);
 	list_head_init(&keystore->keys);
 
-	for (i = 0; i < ARRAY_SIZE(keystore_roots); i++) {
-		update_keystore(keystore, keystore_roots[i]);
+	for (i = 0; i < ctx->n_keystore_dirs; i++) {
+		update_keystore(keystore, ctx->keystore_dirs[i]);
 	}
 
 	ctx->keystore = keystore;
@@ -518,6 +520,8 @@ static struct option options[] = {
 	{ "version", no_argument, NULL, 'V' },
 	{ "efivars-path", required_argument, NULL, 'e' },
 	{ "verbose", no_argument, NULL, 'v' },
+	{ "no-default-keystores", no_argument, NULL, 'd' },
+	{ "keystore", required_argument, NULL, 'k' },
 	{ NULL, 0, NULL, 0 },
 };
 
@@ -528,8 +532,14 @@ static void usage(void)
 		"\n"
 		"Options:\n"
 		"\t--efivars-path <dir>  Path to efivars mountpoint\n"
-		"                        (or regular directory for testing)\n"
-		"\t--verbose             Print verbose progress information\n",
+		"\t                       (or regular directory for testing)\n"
+		"\t--verbose             Print verbose progress information\n"
+		"\t--keystore <dir>      Read keys from <dir>/{db,dbx,KEK}/*\n"
+		"\t                       (can be specified multiple times,\n"
+		"\t                       first dir takes precedence)\n"
+		"\t--no-default-keystores\n"
+		"\t                      Don't read keys from the default\n"
+		"\t                       keystore dirs\n",
 		toolname);
 }
 
@@ -538,21 +548,38 @@ static void version(void)
 	printf("%s %s\n", toolname, VERSION);
 }
 
+static void add_keystore_dir(struct sync_context *ctx, const char *dir)
+{
+	ctx->keystore_dirs = talloc_realloc(ctx, ctx->keystore_dirs,
+			const char *, ++ctx->n_keystore_dirs);
+
+	ctx->keystore_dirs[ctx->n_keystore_dirs - 1] =
+				talloc_strdup(ctx->keystore_dirs, dir);
+}
+
 int main(int argc, char **argv)
 {
+	bool use_default_keystore_dirs;
 	struct sync_context *ctx;
 
+	use_default_keystore_dirs = true;
 	ctx = talloc_zero(NULL, struct sync_context);
 
 	for (;;) {
 		int idx, c;
-		c = getopt_long(argc, argv, "e:vhV", options, &idx);
+		c = getopt_long(argc, argv, "e:dkvhV", options, &idx);
 		if (c == -1)
 			break;
 
 		switch (c) {
 		case 'e':
 			ctx->efivars_dir = optarg;
+			break;
+		case 'd':
+			use_default_keystore_dirs = false;
+			break;
+		case 'k':
+			add_keystore_dir(ctx, optarg);
 			break;
 		case 'v':
 			ctx->verbose = true;
@@ -583,6 +610,13 @@ int main(int argc, char **argv)
 			return EXIT_FAILURE;
 		}
 	}
+
+	if (use_default_keystore_dirs) {
+		unsigned int i;
+		for (i = 0; i < ARRAY_SIZE(default_keystore_dirs); i++)
+			add_keystore_dir(ctx, default_keystore_dirs[i]);
+	}
+
 
 	read_key_databases(ctx);
 	read_keystore(ctx);
