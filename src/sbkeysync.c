@@ -125,6 +125,7 @@ struct sync_context {
 	struct key_database	*db;
 	struct key_database	*dbx;
 	struct keystore		*keystore;
+	bool			verbose;
 };
 
 #define GUID_STRLEN (8 + 1 + 4 + 1 + 4 + 1 + 4 + 1 + 12 + 1)
@@ -341,21 +342,28 @@ static void print_key_database(struct key_database *kdb)
 	struct key *key;
 	int i;
 
-	printf("kdb %s\n", kdb->name);
+	printf("  %s\n", kdb->name);
 
 	list_for_each(&kdb->keys, key, list) {
-		printf("  %d bytes: [ ", key->id_len);
+		printf("    %d bytes: [ ", key->id_len);
 		for (i = 0; i < key->id_len; i++)
 			printf("0x%02x ", key->id[i]);
 		printf("]\n");
 	}
 }
 
+static void print_key_databases(struct sync_context *ctx)
+{
+	printf("EFI key databases:\n");
+	print_key_database(ctx->kek);
+	print_key_database(ctx->db);
+	print_key_database(ctx->dbx);
+}
+
 static int read_key_databases(struct sync_context *ctx)
 {
 	struct efi_sigdb_desc *desc;
 	unsigned int i;
-	int rc;
 	struct {
 		enum sigdb_type type;
 		struct key_database **kdb;
@@ -374,10 +382,7 @@ static int read_key_databases(struct sync_context *ctx)
 		kdb->name = desc->name;
 		list_head_init(&kdb->keys);
 
-		rc = read_efivars_key_database(ctx, databases[i].type, kdb);
-
-		if (!rc)
-			print_key_database(kdb);
+		read_efivars_key_database(ctx, databases[i].type, kdb);
 
 		*databases[i].kdb = kdb;
 	}
@@ -502,14 +507,17 @@ static void print_keystore(struct keystore *keystore)
 {
 	struct keystore_entry *ke;
 
+	printf("Filesystem keystore:\n");
+
 	list_for_each(&keystore->keys, ke, list)
-		printf(" %s [%zd bytes]\n", ke->name, ke->len);
+		printf("  %s [%zd bytes]\n", ke->name, ke->len);
 }
 
 static struct option options[] = {
 	{ "help", no_argument, NULL, 'h' },
 	{ "version", no_argument, NULL, 'V' },
 	{ "efivars-path", required_argument, NULL, 'e' },
+	{ "verbose", no_argument, NULL, 'v' },
 	{ NULL, 0, NULL, 0 },
 };
 
@@ -520,7 +528,8 @@ static void usage(void)
 		"\n"
 		"Options:\n"
 		"\t--efivars-path <dir>  Path to efivars mountpoint\n"
-		"                        (or regular directory for testing)\n",
+		"                        (or regular directory for testing)\n"
+		"\t--verbose             Print verbose progress information\n",
 		toolname);
 }
 
@@ -537,13 +546,16 @@ int main(int argc, char **argv)
 
 	for (;;) {
 		int idx, c;
-		c = getopt_long(argc, argv, "e:hV", options, &idx);
+		c = getopt_long(argc, argv, "e:vhV", options, &idx);
 		if (c == -1)
 			break;
 
 		switch (c) {
 		case 'e':
 			ctx->efivars_dir = optarg;
+			break;
+		case 'v':
+			ctx->verbose = true;
 			break;
 		case 'V':
 			version();
@@ -574,7 +586,11 @@ int main(int argc, char **argv)
 
 	read_key_databases(ctx);
 	read_keystore(ctx);
-	print_keystore(ctx->keystore);
+
+	if (ctx->verbose) {
+		print_key_databases(ctx);
+		print_keystore(ctx->keystore);
+	}
 
 	return EXIT_SUCCESS;
 }
