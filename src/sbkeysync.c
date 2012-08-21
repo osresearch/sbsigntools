@@ -109,6 +109,7 @@ struct key_database {
 };
 
 struct keystore_entry {
+	const char		*root;
 	const char		*name;
 	uint8_t			*data;
 	size_t			len;
@@ -414,11 +415,11 @@ static int check_efivars_mount(const char *mountpoint)
  *     add file to keystore
  */
 
-static int keystore_entry_read(struct keystore_entry *ke, const char *root)
+static int keystore_entry_read(struct keystore_entry *ke)
 {
 	const char *path;
 
-	path = talloc_asprintf(ke, "%s/%s", root, ke->name);
+	path = talloc_asprintf(ke, "%s/%s", ke->root, ke->name);
 
 	if (fileio_read_file(ke, path, &ke->data, &ke->len)) {
 		talloc_free(ke);
@@ -474,9 +475,10 @@ static int update_keystore(struct keystore *keystore, const char *root)
 
 			ke = talloc(keystore, struct keystore_entry);
 			ke->name = filename;
+			ke->root = root;
 			talloc_steal(ke, ke->name);
 
-			if (keystore_entry_read(ke, root))
+			if (keystore_entry_read(ke))
 				talloc_free(ke);
 			else
 				list_add(&keystore->keys, &ke->list);
@@ -512,7 +514,7 @@ static void print_keystore(struct keystore *keystore)
 	printf("Filesystem keystore:\n");
 
 	list_for_each(&keystore->keys, ke, list)
-		printf("  %s [%zd bytes]\n", ke->name, ke->len);
+		printf("  %s/%s [%zd bytes]\n", ke->root, ke->name, ke->len);
 }
 
 static struct option options[] = {
