@@ -104,7 +104,8 @@ struct key {
 
 struct key_database {
 	const char		*name;
-	struct list_head	keys;
+	struct list_head	firmware_keys;
+	struct list_head	filesystem_keys;
 };
 
 struct fs_keystore_entry {
@@ -305,7 +306,7 @@ static int sigdb_add_key(EFI_SIGNATURE_DATA *sigdata, int len,
 	if (rc)
 		talloc_free(key);
 	else
-		list_add(&kdb->keys, &key->list);
+		list_add(&kdb->firmware_keys, &key->list);
 
 	return 0;
 }
@@ -346,7 +347,7 @@ static void print_key_database(struct key_database *kdb)
 
 	printf("  %s\n", kdb->name);
 
-	list_for_each(&kdb->keys, key, list) {
+	list_for_each(&kdb->firmware_keys, key, list) {
 		printf("    %d bytes: [ ", key->id_len);
 		for (i = 0; i < key->id_len; i++)
 			printf("0x%02x ", key->id[i]);
@@ -382,7 +383,8 @@ static int read_key_databases(struct sync_context *ctx)
 
 		kdb = talloc(ctx, struct key_database);
 		kdb->name = desc->name;
-		list_head_init(&kdb->keys);
+		list_head_init(&kdb->firmware_keys);
+		list_head_init(&kdb->filesystem_keys);
 
 		read_efivars_key_database(ctx, databases[i].type, kdb);
 
