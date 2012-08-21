@@ -107,7 +107,7 @@ struct key_database {
 	struct list_head	keys;
 };
 
-struct keystore_entry {
+struct fs_keystore_entry {
 	const char		*root;
 	const char		*name;
 	uint8_t			*data;
@@ -115,7 +115,7 @@ struct keystore_entry {
 	struct list_node	list;
 };
 
-struct keystore {
+struct fs_keystore {
 	struct list_head	keys;
 };
 
@@ -124,7 +124,7 @@ struct sync_context {
 	struct key_database	*kek;
 	struct key_database	*db;
 	struct key_database	*dbx;
-	struct keystore		*keystore;
+	struct fs_keystore	*fs_keystore;
 	const char		**keystore_dirs;
 	unsigned int		n_keystore_dirs;
 	bool			verbose;
@@ -414,7 +414,7 @@ static int check_efivars_mount(const char *mountpoint)
  *     add file to keystore
  */
 
-static int keystore_entry_read(struct keystore_entry *ke)
+static int keystore_entry_read(struct fs_keystore_entry *ke)
 {
 	const char *path;
 
@@ -430,10 +430,10 @@ static int keystore_entry_read(struct keystore_entry *ke)
 	return 0;
 }
 
-static bool keystore_contains_file(struct keystore *keystore,
+static bool keystore_contains_file(struct fs_keystore *keystore,
 		const char *filename)
 {
-	struct keystore_entry *ke;
+	struct fs_keystore_entry *ke;
 
 	list_for_each(&keystore->keys, ke, list) {
 		if (!strcmp(ke->name, filename))
@@ -443,7 +443,7 @@ static bool keystore_contains_file(struct keystore *keystore,
 	return false;
 }
 
-static int update_keystore(struct keystore *keystore, const char *root)
+static int update_keystore(struct fs_keystore *keystore, const char *root)
 {
 	unsigned int i;
 
@@ -460,7 +460,7 @@ static int update_keystore(struct keystore *keystore, const char *root)
 			continue;
 
 		for (dirent = readdir(dir); dirent; dirent = readdir(dir)) {
-			struct keystore_entry *ke;
+			struct fs_keystore_entry *ke;
 
 			if (dirent->d_name[0] == '.')
 				continue;
@@ -472,7 +472,7 @@ static int update_keystore(struct keystore *keystore, const char *root)
 			if (keystore_contains_file(keystore, filename))
 				continue;
 
-			ke = talloc(keystore, struct keystore_entry);
+			ke = talloc(keystore, struct fs_keystore_entry);
 			ke->name = filename;
 			ke->root = root;
 			talloc_steal(ke, ke->name);
@@ -491,24 +491,24 @@ static int update_keystore(struct keystore *keystore, const char *root)
 
 static int read_keystore(struct sync_context *ctx)
 {
-	struct keystore *keystore;
+	struct fs_keystore *keystore;
 	unsigned int i;
 
-	keystore = talloc(ctx, struct keystore);
+	keystore = talloc(ctx, struct fs_keystore);
 	list_head_init(&keystore->keys);
 
 	for (i = 0; i < ctx->n_keystore_dirs; i++) {
 		update_keystore(keystore, ctx->keystore_dirs[i]);
 	}
 
-	ctx->keystore = keystore;
+	ctx->fs_keystore = keystore;
 
 	return 0;
 }
 
-static void print_keystore(struct keystore *keystore)
+static void print_keystore(struct fs_keystore *keystore)
 {
-	struct keystore_entry *ke;
+	struct fs_keystore_entry *ke;
 
 	printf("Filesystem keystore:\n");
 
@@ -624,7 +624,7 @@ int main(int argc, char **argv)
 
 	if (ctx->verbose) {
 		print_key_databases(ctx);
-		print_keystore(ctx->keystore);
+		print_keystore(ctx->fs_keystore);
 	}
 
 	return EXIT_SUCCESS;
