@@ -61,22 +61,15 @@
 
 static const char *toolname = "sbkeysync";
 
-enum sigdb_type {
-	SIGDB_KEK,
-	SIGDB_DB,
-	SIGDB_DBX,
-};
-
-struct efi_sigdb_desc {
-	enum sigdb_type	type;
+struct key_database_type {
 	const char	*name;
 	EFI_GUID	guid;
 };
 
-struct efi_sigdb_desc efi_sigdb_descs[] = {
-	{ SIGDB_KEK, "KEK", EFI_GLOBAL_VARIABLE },
-	{ SIGDB_DB,  "db",  EFI_IMAGE_SECURITY_DATABASE_GUID },
-	{ SIGDB_DBX, "dbx", EFI_IMAGE_SECURITY_DATABASE_GUID },
+struct key_database_type keydb_types[] = {
+	{ "KEK", EFI_GLOBAL_VARIABLE },
+	{ "db",  EFI_IMAGE_SECURITY_DATABASE_GUID },
+	{ "dbx", EFI_IMAGE_SECURITY_DATABASE_GUID },
 };
 
 static const char *default_keystore_dirs[] = {
@@ -103,9 +96,9 @@ struct key {
 };
 
 struct key_database {
-	const char		*name;
-	struct list_head	firmware_keys;
-	struct list_head	filesystem_keys;
+	const struct key_database_type	*type;
+	struct list_head		firmware_keys;
+	struct list_head		filesystem_keys;
 };
 
 struct fs_keystore_entry {
@@ -230,17 +223,6 @@ static int key_id(void *ctx, const EFI_GUID *type, uint8_t *sigdata,
 
 }
 
-struct efi_sigdb_desc *efi_sigdb_desc_lookup(enum sigdb_type type)
-{
-	unsigned int i;
-
-	for (i = 0; i < ARRAY_SIZE(efi_sigdb_descs); i++)
-		if (efi_sigdb_descs[i].type == type)
-			return &efi_sigdb_descs[i];
-
-	abort();
-}
-
 typedef int (*sigdata_fn)(EFI_SIGNATURE_DATA *, int, const EFI_GUID *, void *);
 
 static int sigdb_iterate(void *db_data, size_t len,
@@ -311,22 +293,18 @@ static int sigdb_add_key(EFI_SIGNATURE_DATA *sigdata, int len,
 	return 0;
 }
 
-
-static int read_efivars_key_database(struct sync_context *ctx,
-		enum sigdb_type type, struct key_database *kdb)
+static int read_firmware_key_database(struct key_database *kdb,
+		const char *dir)
 {
-	struct efi_sigdb_desc *desc;
 	char guid_str[GUID_STRLEN];
 	char *filename;
 	uint8_t *buf;
 	size_t len;
 
-	desc = efi_sigdb_desc_lookup(type);
+	guid_to_str(&kdb->type->guid, guid_str);
 
-	guid_to_str(&desc->guid, guid_str);
-
-	filename = talloc_asprintf(ctx, "%s/%s-%s", ctx->efivars_dir,
-					desc->name, guid_str);
+	filename = talloc_asprintf(kdb, "%s/%s-%s", dir,
+					kdb->type->name, guid_str);
 
 	if (fileio_read_file_noerror(ctx, filename, &buf, &len))
 		return -1;
@@ -340,12 +318,29 @@ static int read_efivars_key_database(struct sync_context *ctx,
 	return 0;
 }
 
+static int read_firmware_key_databases(struct sync_context *ctx)
+{
+	struct key_database *kdbs[] = {
+		ctx->kek,
+		ctx->db,
+		ctx->dbx,
+	};
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(kdbs); i++) {
+		struct key_database *kdb = kdbs[i];
+		read_firmware_key_database(kdb, ctx->efivars_dir);
+	}
+
+	return 0;
+}
+
 static void print_key_database(struct key_database *kdb)
 {
 	struct key *key;
 	int i;
 
-	printf("  %s\n", kdb->name);
+	printf("  %s\n", kdb->type->name);
 
 	list_for_each(&kdb->firmware_keys, key, list) {
 		printf("    %d bytes: [ ", key->id_len);
@@ -361,37 +356,6 @@ static void print_key_databases(struct sync_context *ctx)
 	print_key_database(ctx->kek);
 	print_key_database(ctx->db);
 	print_key_database(ctx->dbx);
-}
-
-static int read_key_databases(struct sync_context *ctx)
-{
-	struct efi_sigdb_desc *desc;
-	unsigned int i;
-	struct {
-		enum sigdb_type type;
-		struct key_database **kdb;
-	} databases[] = {
-		{ SIGDB_KEK, &ctx->kek },
-		{ SIGDB_DB,  &ctx->db },
-		{ SIGDB_DBX, &ctx->dbx },
-	};
-
-	for (i = 0; i < ARRAY_SIZE(databases); i++) {
-		struct key_database *kdb;
-
-		desc = efi_sigdb_desc_lookup(databases[i].type);
-
-		kdb = talloc(ctx, struct key_database);
-		kdb->name = desc->name;
-		list_head_init(&kdb->firmware_keys);
-		list_head_init(&kdb->filesystem_keys);
-
-		read_efivars_key_database(ctx, databases[i].type, kdb);
-
-		*databases[i].kdb = kdb;
-	}
-
-	return 0;
 }
 
 static int check_efivars_mount(const char *mountpoint)
@@ -449,13 +413,13 @@ static int update_keystore(struct fs_keystore *keystore, const char *root)
 {
 	unsigned int i;
 
-	for (i = 0; i < ARRAY_SIZE(efi_sigdb_descs); i++) {
+	for (i = 0; i < ARRAY_SIZE(keydb_types); i++) {
 		const char *dirname, *filename;
 		struct dirent *dirent;
 		DIR *dir;
 
 		dirname = talloc_asprintf(keystore, "%s/%s", root,
-					efi_sigdb_descs[i].name);
+					keydb_types[i].name);
 
 		dir = opendir(dirname);
 		if (!dir)
@@ -468,7 +432,7 @@ static int update_keystore(struct fs_keystore *keystore, const char *root)
 				continue;
 
 			filename = talloc_asprintf(dirname, "%s/%s",
-					efi_sigdb_descs[i].name,
+					keydb_types[i].name,
 					dirent->d_name);
 
 			if (keystore_contains_file(keystore, filename))
@@ -516,6 +480,21 @@ static void print_keystore(struct fs_keystore *keystore)
 
 	list_for_each(&keystore->keys, ke, list)
 		printf("  %s/%s [%zd bytes]\n", ke->root, ke->name, ke->len);
+}
+
+static void init_key_database(struct sync_context *ctx,
+		struct key_database **kdb_p,
+		const struct key_database_type *type)
+{
+	struct key_database *kdb;
+
+	kdb = talloc(ctx, struct key_database);
+
+	list_head_init(&kdb->firmware_keys);
+	list_head_init(&kdb->filesystem_keys);
+	kdb->type = type;
+
+	*kdb_p = kdb;
 }
 
 static struct option options[] = {
@@ -601,6 +580,10 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
+	init_key_database(ctx, &ctx->kek, &keydb_types[0]);
+	init_key_database(ctx, &ctx->db, &keydb_types[1]);
+	init_key_database(ctx, &ctx->dbx, &keydb_types[2]);
+
 	ERR_load_crypto_strings();
 	OpenSSL_add_all_digests();
 	OpenSSL_add_all_ciphers();
@@ -621,7 +604,7 @@ int main(int argc, char **argv)
 	}
 
 
-	read_key_databases(ctx);
+	read_firmware_key_databases(ctx);
 	read_keystore(ctx);
 
 	if (ctx->verbose) {
