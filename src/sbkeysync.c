@@ -84,8 +84,7 @@ static const char *default_keystore_dirs[] = {
 	"/usr/share/secureboot/keys",
 };
 
-typedef int (*key_id_func)(void *, EFI_SIGNATURE_DATA *, size_t,
-				uint8_t **, int *);
+typedef int (*key_id_func)(void *, uint8_t *, size_t, uint8_t **, int *);
 
 struct cert_type {
 	EFI_GUID	guid;
@@ -143,17 +142,17 @@ static void guid_to_str(const EFI_GUID *guid, char *str)
 			guid->Data4[6], guid->Data4[7]);
 }
 
-static int sha256_key_id(void *ctx, EFI_SIGNATURE_DATA *sigdata,
-		size_t sigdata_datalen, uint8_t **buf, int *len)
+static int sha256_key_id(void *ctx, uint8_t *sigdata,
+		size_t sigdata_len, uint8_t **buf, int *len)
 {
 	const unsigned int sha256_id_size = 256 / 8;
 	uint8_t *id;
 
-	if (sigdata_datalen != sha256_id_size)
+	if (sigdata_len != sha256_id_size)
 		return -1;
 
 	id = talloc_array(ctx, uint8_t, sha256_id_size);
-	memcpy(sigdata->SignatureData, buf, sha256_id_size);
+	memcpy(sigdata, buf, sha256_id_size);
 
 	*buf = id;
 	*len = sha256_id_size;
@@ -161,8 +160,8 @@ static int sha256_key_id(void *ctx, EFI_SIGNATURE_DATA *sigdata,
 	return 0;
 }
 
-static int x509_key_id(void *ctx, EFI_SIGNATURE_DATA *sigdata,
-		size_t sigdata_datalen, uint8_t **buf, int *len)
+static int x509_key_id(void *ctx, uint8_t *sigdata,
+		size_t sigdata_len, uint8_t **buf, int *len)
 {
 	ASN1_INTEGER *serial;
 	const uint8_t *tmp;
@@ -172,9 +171,9 @@ static int x509_key_id(void *ctx, EFI_SIGNATURE_DATA *sigdata,
 
 	rc = -1;
 
-	tmp = sigdata->SignatureData;
+	tmp = sigdata;
 
-	x509 = d2i_X509(NULL, &tmp, sigdata_datalen);
+	x509 = d2i_X509(NULL, &tmp, sigdata_len);
 	if (!x509)
 		return -1;
 
@@ -209,8 +208,8 @@ static int guidcmp(const EFI_GUID *a, const EFI_GUID *b)
 	return memcmp(a, b, sizeof(EFI_GUID));
 }
 
-static int key_id(void *ctx, const EFI_GUID *type, EFI_SIGNATURE_DATA *sigdata,
-		size_t sigdata_datalen, uint8_t **buf, int *len)
+static int key_id(void *ctx, const EFI_GUID *type, uint8_t *sigdata,
+		size_t sigdata_len, uint8_t **buf, int *len)
 {
 	char guid_str[GUID_STRLEN];
 	unsigned int i;
@@ -219,7 +218,7 @@ static int key_id(void *ctx, const EFI_GUID *type, EFI_SIGNATURE_DATA *sigdata,
 		if (guidcmp(&cert_types[i].guid, type))
 			continue;
 
-		return cert_types[i].get_id(ctx, sigdata, sigdata_datalen,
+		return cert_types[i].get_id(ctx, sigdata, sigdata_len,
 				buf, len);
 	}
 
@@ -300,8 +299,8 @@ static int sigdb_add_key(EFI_SIGNATURE_DATA *sigdata, int len,
 
 	key = talloc(kdb, struct key);
 
-	rc = key_id(kdb, type, sigdata, len - sizeof(sigdata), &key->id,
-			&key->id_len);
+	rc = key_id(kdb, type, sigdata->SignatureData, len - sizeof(sigdata),
+			&key->id, &key->id_len);
 
 	if (rc)
 		talloc_free(key);
