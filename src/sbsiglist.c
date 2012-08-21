@@ -242,6 +242,18 @@ int main(int argc, char **argv)
 
 	ctx->infilename = argv[optind];
 
+	if (!type_str) {
+		fprintf(stderr, "No type specified\n");
+		usage();
+		return EXIT_FAILURE;
+	}
+
+	if (!type_str) {
+		fprintf(stderr, "No owner specified\n");
+		usage();
+		return EXIT_FAILURE;
+	}
+
 	ctx->type = parse_type(type_str);
 	if (!ctx->type) {
 		fprintf(stderr, "Invalid type '%s'\n", type_str);
