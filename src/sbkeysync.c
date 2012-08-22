@@ -83,6 +83,8 @@ struct key {
 	int				id_len;
 	uint8_t				*id;
 
+	char				*description;
+
 	struct list_node		list;
 
 	/* set for keys loaded from a filesystem keystore */
@@ -141,6 +143,7 @@ static void guid_to_str(const EFI_GUID *guid, char *str)
 static int sha256_key_parse(struct key *key, uint8_t *data, size_t len)
 {
 	const unsigned int sha256_id_size = 256 / 8;
+	unsigned int i;
 
 	if (len != sha256_id_size)
 		return -1;
@@ -148,15 +151,21 @@ static int sha256_key_parse(struct key *key, uint8_t *data, size_t len)
 	key->id = talloc_memdup(key, data, sha256_id_size);
 	key->id_len = sha256_id_size;
 
+	key->description = talloc_array(key, char, len * 2 + 1);
+	for (i = 0; i < len; i++)
+		snprintf(&key->description[i*2], 3, "%02x", data[i]);
+	key->description[len*2] = '\0';
+
 	return 0;
 }
 
 static int x509_key_parse(struct key *key, uint8_t *data, size_t len)
 {
+	const int description_len = 160;
 	ASN1_INTEGER *serial;
 	const uint8_t *tmp;
-	int tmp_len, rc;
 	X509 *x509;
+	int rc;
 
 	rc = -1;
 
@@ -173,7 +182,11 @@ static int x509_key_parse(struct key *key, uint8_t *data, size_t len)
 	serial = x509->cert_info->serialNumber;
 
 	key->id_len = ASN1_STRING_length(serial);
-	key->id = talloc_memdup(key, ASN1_STRING_data(serial), tmp_len);
+	key->id = talloc_memdup(key, ASN1_STRING_data(serial), key->id_len);
+
+	key->description = talloc_array(key, char, description_len);
+	X509_NAME_oneline(x509->cert_info->subject,
+			key->description, description_len);
 
 	rc = 0;
 
@@ -458,24 +471,16 @@ static int read_key_databases(struct sync_context *ctx)
 static void print_key_database(struct key_database *kdb)
 {
 	struct key *key;
-	int i;
 
 	printf("  %s (firmware)\n", kdb->type->name);
 
-	list_for_each(&kdb->firmware_keys, key, list) {
-		printf("    %d bytes: [ ", key->id_len);
-		for (i = 0; i < key->id_len; i++)
-			printf("0x%02x ", key->id[i]);
-		printf("]\n");
-	}
+	list_for_each(&kdb->firmware_keys, key, list)
+		printf("    %s\n", key->description);
 
 	printf("  %s (filesystem)\n", kdb->type->name);
 
 	list_for_each(&kdb->filesystem_keys, key, list) {
-		printf("    %d bytes: [ ", key->id_len);
-		for (i = 0; i < key->id_len; i++)
-			printf("0x%02x ", key->id[i]);
-		printf("]\n");
+		printf("    %s\n", key->description);
 		printf("     from %s/%s\n",
 				key->keystore_entry->root,
 				key->keystore_entry->name);
