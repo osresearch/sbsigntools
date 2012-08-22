@@ -273,7 +273,7 @@ static int add_auth_descriptor(struct varsign_context *ctx)
 	auth = talloc_size(ctx, sizeof(*auth) + len);
 
 	auth->TimeStamp = timestamp;
-	auth->AuthInfo.Hdr.dwLength = len + sizeof(EFI_GUID);
+	auth->AuthInfo.Hdr.dwLength = len + sizeof(auth->AuthInfo);
 	auth->AuthInfo.Hdr.wRevision = 0x0200;
 	auth->AuthInfo.Hdr.wCertificateType = 0x0EF1;
 	auth->AuthInfo.CertType = cert_pkcs7_guid;
