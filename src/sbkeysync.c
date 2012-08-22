@@ -214,6 +214,14 @@ static int key_parse(struct key *key, const EFI_GUID *type,
 
 typedef int (*sigdata_fn)(EFI_SIGNATURE_DATA *, int, const EFI_GUID *, void *);
 
+/**
+ * Iterates an buffer of EFI_SIGNATURE_LISTs (at db_data, of length len),
+ * and calls fn on each EFI_SIGNATURE_DATA item found.
+ *
+ * fn is passed the EFI_SIGNATURE_DATA pointer, and the length of the
+ * signature data (including GUID header), the type of the signature list,
+ * and a context pointer.
+ */
 static int sigdb_iterate(void *db_data, size_t len,
 		sigdata_fn fn, void *arg)
 {
