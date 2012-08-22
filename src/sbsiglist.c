@@ -85,7 +85,7 @@ struct cert_type {
 
 struct cert_type cert_types[] = {
 	{ "x509",   EFI_CERT_X509_GUID,   0 },
-	{ "sha256", EFI_CERT_SHA256_GUID, sizeof(EFI_SIGNATURE_DATA) + 16 },
+	{ "sha256", EFI_CERT_SHA256_GUID, 32 },
 };
 
 struct siglist_context {
@@ -132,8 +132,7 @@ static int siglist_create(struct siglist_context *ctx)
 	EFI_SIGNATURE_DATA *sigdata;
 	uint32_t size;
 
-	if (ctx->type->sigsize && ctx->data_len + sizeof(*sigdata)
-			!= ctx->type->sigsize) {
+	if (ctx->type->sigsize && ctx->data_len != ctx->type->sigsize) {
 		fprintf(stderr, "Error: signature lists of type '%s' expect "
 					"%d bytes of data, "
 					"%zd bytes provided.\n",
