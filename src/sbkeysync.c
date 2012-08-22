@@ -77,12 +77,6 @@ static const char *default_keystore_dirs[] = {
 	"/usr/share/secureboot/keys",
 };
 
-typedef int (*key_id_func)(void *, uint8_t *, size_t, uint8_t **, int *);
-
-struct cert_type {
-	EFI_GUID	guid;
-	key_id_func	get_id;
-};
 
 struct key {
 	EFI_GUID			type;
@@ -93,6 +87,13 @@ struct key {
 
 	/* set for keys loaded from a filesystem keystore */
 	struct fs_keystore_entry	*keystore_entry;
+};
+
+typedef int (*key_parse_func)(struct key *, uint8_t *, size_t);
+
+struct cert_type {
+	EFI_GUID	guid;
+	key_parse_func	parse;
 };
 
 struct key_database {
@@ -137,38 +138,31 @@ static void guid_to_str(const EFI_GUID *guid, char *str)
 			guid->Data4[6], guid->Data4[7]);
 }
 
-static int sha256_key_id(void *ctx, uint8_t *sigdata,
-		size_t sigdata_len, uint8_t **buf, int *len)
+static int sha256_key_parse(struct key *key, uint8_t *data, size_t len)
 {
 	const unsigned int sha256_id_size = 256 / 8;
-	uint8_t *id;
 
-	if (sigdata_len != sha256_id_size)
+	if (len != sha256_id_size)
 		return -1;
 
-	id = talloc_array(ctx, uint8_t, sha256_id_size);
-	memcpy(sigdata, buf, sha256_id_size);
-
-	*buf = id;
-	*len = sha256_id_size;
+	key->id = talloc_memdup(key, data, sha256_id_size);
+	key->id_len = sha256_id_size;
 
 	return 0;
 }
 
-static int x509_key_id(void *ctx, uint8_t *sigdata,
-		size_t sigdata_len, uint8_t **buf, int *len)
+static int x509_key_parse(struct key *key, uint8_t *data, size_t len)
 {
 	ASN1_INTEGER *serial;
 	const uint8_t *tmp;
-	uint8_t *tmp_buf;
 	int tmp_len, rc;
 	X509 *x509;
 
 	rc = -1;
 
-	tmp = sigdata;
+	tmp = data;
 
-	x509 = d2i_X509(NULL, &tmp, sigdata_len);
+	x509 = d2i_X509(NULL, &tmp, len);
 	if (!x509)
 		return -1;
 
@@ -178,13 +172,8 @@ static int x509_key_id(void *ctx, uint8_t *sigdata,
 
 	serial = x509->cert_info->serialNumber;
 
-	tmp_len = ASN1_STRING_length(serial);
-	tmp_buf = talloc_array(ctx, uint8_t, tmp_len);
-
-	memcpy(tmp_buf, ASN1_STRING_data(serial), tmp_len);
-
-	*buf = tmp_buf;
-	*len = tmp_len;
+	key->id_len = ASN1_STRING_length(serial);
+	key->id = talloc_memdup(key, ASN1_STRING_data(serial), tmp_len);
 
 	rc = 0;
 
@@ -194,8 +183,8 @@ out:
 }
 
 struct cert_type cert_types[] = {
-	{ EFI_CERT_SHA256_GUID, sha256_key_id },
-	{ EFI_CERT_X509_GUID, x509_key_id },
+	{ EFI_CERT_SHA256_GUID, sha256_key_parse },
+	{ EFI_CERT_X509_GUID, x509_key_parse },
 };
 
 static int guidcmp(const EFI_GUID *a, const EFI_GUID *b)
@@ -203,8 +192,8 @@ static int guidcmp(const EFI_GUID *a, const EFI_GUID *b)
 	return memcmp(a, b, sizeof(EFI_GUID));
 }
 
-static int key_id(void *ctx, const EFI_GUID *type, uint8_t *sigdata,
-		size_t sigdata_len, uint8_t **buf, int *len)
+static int key_parse(struct key *key, const EFI_GUID *type,
+		uint8_t *data, size_t len)
 {
 	char guid_str[GUID_STRLEN];
 	unsigned int i;
@@ -213,8 +202,7 @@ static int key_id(void *ctx, const EFI_GUID *type, uint8_t *sigdata,
 		if (guidcmp(&cert_types[i].guid, type))
 			continue;
 
-		return cert_types[i].get_id(ctx, sigdata, sigdata_len,
-				buf, len);
+		return cert_types[i].parse(key, data, len);
 	}
 
 	guid_to_str(type, guid_str);
@@ -283,8 +271,8 @@ static int sigdb_add_key(EFI_SIGNATURE_DATA *sigdata, int len,
 
 	key = talloc(kdb, struct key);
 
-	rc = key_id(kdb, type, sigdata->SignatureData, len - sizeof(sigdata),
-			&key->id, &key->id_len);
+	rc = key_parse(key, type, sigdata->SignatureData,
+			len - sizeof(*sigdata));
 
 	if (rc)
 		talloc_free(key);
@@ -336,8 +324,8 @@ static int keystore_add_key(EFI_SIGNATURE_DATA *sigdata, int len,
 	key->keystore_entry = add_ctx->ke;
 	key->type = *type;
 
-	rc = key_id(key, type, sigdata->SignatureData, len,
-			&key->id, &key->id_len);
+	rc = key_parse(key, type, sigdata->SignatureData,
+			len - sizeof(*sigdata));
 
 	if (rc) {
 		talloc_free(key);
