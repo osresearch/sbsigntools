@@ -464,13 +464,25 @@ static void print_key_database(struct key_database *kdb)
 	struct key *key;
 	int i;
 
-	printf("  %s\n", kdb->type->name);
+	printf("  %s (firmware)\n", kdb->type->name);
 
 	list_for_each(&kdb->firmware_keys, key, list) {
 		printf("    %d bytes: [ ", key->id_len);
 		for (i = 0; i < key->id_len; i++)
 			printf("0x%02x ", key->id[i]);
 		printf("]\n");
+	}
+
+	printf("  %s (filesystem)\n", kdb->type->name);
+
+	list_for_each(&kdb->filesystem_keys, key, list) {
+		printf("    %d bytes: [ ", key->id_len);
+		for (i = 0; i < key->id_len; i++)
+			printf("0x%02x ", key->id[i]);
+		printf("]\n");
+		printf("     from %s/%s\n",
+				key->keystore_entry->root,
+				key->keystore_entry->name);
 	}
 }
 
