@@ -321,6 +321,7 @@ static int read_firmware_key_database(struct key_database *kdb,
 	char guid_str[GUID_STRLEN];
 	char *filename;
 	uint8_t *buf;
+	int rc = -1;
 	size_t len;
 
 	guid_to_str(&kdb->type->guid, guid_str);
@@ -328,16 +329,27 @@ static int read_firmware_key_database(struct key_database *kdb,
 	filename = talloc_asprintf(kdb, "%s/%s-%s", dir,
 					kdb->type->name, guid_str);
 
-	if (fileio_read_file_noerror(ctx, filename, &buf, &len))
-		return -1;
+	buf = NULL;
+	rc = fileio_read_file_noerror(kdb, filename, &buf, &len);
+	if (rc)
+		goto out;
 
 	/* efivars files start with a 32-bit attribute block */
+	if (len < sizeof(uint32_t))
+		goto out;
+
 	buf += sizeof(uint32_t);
 	len -= sizeof(uint32_t);
 
+	rc = 0;
 	sigdb_iterate(buf, len, sigdb_add_key, kdb);
 
-	return 0;
+out:
+	if (rc)
+		talloc_free(buf);
+	talloc_free(filename);
+
+	return rc;
 }
 
 struct keystore_add_ctx {
