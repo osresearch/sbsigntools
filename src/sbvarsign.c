@@ -96,6 +96,12 @@ static struct attr attrs[] = {
 	EFI_VAR_ATTR(APPEND_WRITE),
 };
 
+static uint32_t default_attrs = EFI_VARIABLE_NON_VOLATILE |
+			EFI_VARIABLE_BOOTSERVICE_ACCESS |
+			EFI_VARIABLE_RUNTIME_ACCESS |
+			EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS |
+			EFI_VARIABLE_APPEND_WRITE;
+
 static uint32_t attr_invalid = 0xffffffffu;
 static const char *attr_prefix = "EFI_VARIABLE_";
 
@@ -135,7 +141,7 @@ static uint32_t parse_attrs(const char *attrs_str)
 	/* we always need E_V_T_B_A_W_A */
 	attrs_val = EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
 
-	if (!attrs_str || !attrs_str[0])
+	if (!attrs_str[0])
 		return attrs_val;
 
 	str = strdup(attrs_str);
@@ -406,7 +412,9 @@ void usage(void)
 	for (i = 0; i < ARRAY_SIZE(attrs); i++)
 		printf("\t                     %s\n", attrs[i].name);
 
-	printf("\t                   Separate multiple attrs with a comma\n"
+	printf("\t                  Separate multiple attrs with a comma,\n"
+		"\t                  default is all attributes,\n"
+		"\t                  TIME_BASED_AUTH... is always included.\n"
 		"\t--output <file>  write signed data to <file>\n"
 		"\t                  (default <var-data-file>.signed)\n");
 }
@@ -496,9 +504,13 @@ int main(int argc, char **argv)
 	if (!ctx->outfilename)
 		set_default_outfilename(ctx);
 
-	ctx->var_attrs = parse_attrs(attr_str);
-	if (ctx->var_attrs == attr_invalid)
-		return EXIT_FAILURE;
+	if (attr_str) {
+		ctx->var_attrs = parse_attrs(attr_str);
+		if (ctx->var_attrs == attr_invalid)
+			return EXIT_FAILURE;
+	} else {
+		ctx->var_attrs = default_attrs;
+	}
 
 	if (guid_str) {
 		if (parse_guid(guid_str, &ctx->var_guid)) {
