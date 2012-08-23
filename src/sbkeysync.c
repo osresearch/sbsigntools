@@ -110,7 +110,7 @@ struct fs_keystore_entry {
 	const char			*name;
 	uint8_t				*data;
 	size_t				len;
-	struct list_node		list;
+	struct list_node		keystore_list;
 };
 
 struct fs_keystore {
@@ -390,7 +390,7 @@ static int read_keystore_key_database(struct key_database *kdb,
 	add_ctx.keystore = keystore;
 	add_ctx.kdb = kdb;
 
-	list_for_each(&keystore->keys, ke, list) {
+	list_for_each(&keystore->keys, ke, keystore_list) {
 		unsigned int len;
 		void *buf;
 
@@ -538,7 +538,7 @@ static bool keystore_contains_file(struct fs_keystore *keystore,
 {
 	struct fs_keystore_entry *ke;
 
-	list_for_each(&keystore->keys, ke, list) {
+	list_for_each(&keystore->keys, ke, keystore_list) {
 		if (!strcmp(ke->name, filename))
 			return true;
 	}
@@ -584,7 +584,7 @@ static int update_keystore(struct fs_keystore *keystore, const char *root)
 			if (keystore_entry_read(ke))
 				talloc_free(ke);
 			else
-				list_add(&keystore->keys, &ke->list);
+				list_add(&keystore->keys, &ke->keystore_list);
 		}
 
 		closedir(dir);
@@ -616,7 +616,7 @@ static void print_keystore(struct fs_keystore *keystore)
 
 	printf("Filesystem keystore:\n");
 
-	list_for_each(&keystore->keys, ke, list)
+	list_for_each(&keystore->keys, ke, keystore_list)
 		printf("  %s/%s [%zd bytes]\n", ke->root, ke->name, ke->len);
 }
 
