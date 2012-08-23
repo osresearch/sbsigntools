@@ -544,17 +544,15 @@ static int check_efivars_mount(const char *mountpoint)
 static int keystore_entry_read(struct fs_keystore_entry *ke)
 {
 	const char *path;
+	int rc;
 
 	path = talloc_asprintf(ke, "%s/%s", ke->root, ke->name);
 
-	if (fileio_read_file(ke, path, &ke->data, &ke->len)) {
-		talloc_free(ke);
-		return -1;
-	}
+	rc = fileio_read_file(ke, path, &ke->data, &ke->len);
 
 	talloc_free(path);
 
-	return 0;
+	return rc;
 }
 
 static bool keystore_contains_file(struct fs_keystore *keystore,
