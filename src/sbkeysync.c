@@ -111,6 +111,7 @@ struct fs_keystore_entry {
 	uint8_t				*data;
 	size_t				len;
 	struct list_node		keystore_list;
+	struct list_node		new_list;
 };
 
 struct fs_keystore {
@@ -125,6 +126,7 @@ struct sync_context {
 	struct fs_keystore	*fs_keystore;
 	const char		**keystore_dirs;
 	unsigned int		n_keystore_dirs;
+	struct list_head	new_keys;
 	bool			verbose;
 };
 
@@ -620,6 +622,90 @@ static void print_keystore(struct fs_keystore *keystore)
 		printf("  %s/%s [%zd bytes]\n", ke->root, ke->name, ke->len);
 }
 
+static int key_cmp(struct key *a, struct key *b)
+{
+	if (a->id_len != b->id_len)
+		return a->id_len - b->id_len;
+
+	return memcmp(a->id, b->id, a->id_len);
+}
+
+static int find_new_keys_in_kdb(struct sync_context *ctx,
+		struct key_database *kdb)
+{
+	struct fs_keystore_entry *ke;
+	struct key *fs_key, *fw_key;
+	bool found;
+	int n = 0;
+
+	list_for_each(&kdb->filesystem_keys, fs_key, list) {
+		found = false;
+		list_for_each(&kdb->firmware_keys, fw_key, list) {
+			if (!key_cmp(fs_key, fw_key)) {
+				found = true;
+				break;
+			}
+		}
+		if (found)
+			continue;
+
+		/* add the keystore entry if it's not already present */
+		found = false;
+		list_for_each(&ctx->new_keys, ke, new_list) {
+			if (fs_key->keystore_entry == ke) {
+				found = true;
+				break;
+			}
+		}
+
+		if (found)
+			continue;
+
+		list_add(&ctx->new_keys, &fs_key->keystore_entry->new_list);
+		n++;
+	}
+
+	return n;
+}
+
+/* Find the keys that are present in the filesystem, but not the firmware.
+ * Returns:
+ *  0   if there are no new keys to add
+ *  >0  if there are keys to add
+ *  -1  on error
+ */
+static int find_new_keys(struct sync_context *ctx)
+{
+	struct key_database *kdbs[] = {
+		ctx->kek,
+		ctx->db,
+		ctx->dbx,
+	};
+	unsigned int n, i;
+	int rc;
+
+	n = 0;
+
+	for (i = 0; i < ARRAY_SIZE(kdbs); i++) {
+		rc = find_new_keys_in_kdb(ctx, kdbs[i]);
+		if (rc < 0)
+			return rc;
+		n += rc;
+	}
+
+	return n;
+}
+
+static void print_new_keys(struct sync_context *ctx)
+{
+	struct fs_keystore_entry *ke;
+
+	printf("New keys to be added:\n");
+
+	list_for_each(&ctx->new_keys, ke, new_list)
+		printf(" %s/%s\n", ke->root, ke->name);
+}
+
 static void init_key_database(struct sync_context *ctx,
 		struct key_database **kdb_p,
 		const struct key_database_type *type)
@@ -684,6 +770,7 @@ int main(int argc, char **argv)
 
 	use_default_keystore_dirs = true;
 	ctx = talloc_zero(NULL, struct sync_context);
+	list_head_init(&ctx->new_keys);
 
 	for (;;) {
 		int idx, c;
@@ -749,6 +836,11 @@ int main(int argc, char **argv)
 		print_key_databases(ctx);
 		print_keystore(ctx->fs_keystore);
 	}
+
+	find_new_keys(ctx);
+
+	if (ctx->verbose)
+		print_new_keys(ctx);
 
 	return EXIT_SUCCESS;
 }
