@@ -830,12 +830,13 @@ int main(int argc, char **argv)
 
 
 	read_keystore(ctx);
-	read_key_databases(ctx);
 
-	if (ctx->verbose) {
-		print_key_databases(ctx);
+	if (ctx->verbose)
 		print_keystore(ctx->fs_keystore);
-	}
+
+	read_key_databases(ctx);
+	if (ctx->verbose)
+		print_key_databases(ctx);
 
 	find_new_keys(ctx);
 
