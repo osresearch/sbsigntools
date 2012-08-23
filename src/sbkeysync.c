@@ -35,6 +35,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include <sys/statfs.h>
 #include <sys/types.h>
 
@@ -60,6 +63,12 @@
 	{ 0xa3, 0xbc, 0xda, 0xd0, 0x0e, 0x67, 0x65, 0x6f } }
 
 static const char *toolname = "sbkeysync";
+
+static const uint32_t sigdb_attrs = EFI_VARIABLE_NON_VOLATILE |
+	EFI_VARIABLE_BOOTSERVICE_ACCESS |
+	EFI_VARIABLE_RUNTIME_ACCESS |
+	EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS |
+	EFI_VARIABLE_APPEND_WRITE;
 
 struct key_database_type {
 	const char	*name;
@@ -128,6 +137,7 @@ struct sync_context {
 	unsigned int		n_keystore_dirs;
 	struct list_head	new_keys;
 	bool			verbose;
+	bool			dry_run;
 };
 
 #define GUID_STRLEN (8 + 1 + 4 + 1 + 4 + 1 + 4 + 1 + 12 + 1)
@@ -706,6 +716,80 @@ static void print_new_keys(struct sync_context *ctx)
 		printf(" %s/%s\n", ke->root, ke->name);
 }
 
+static int insert_key(struct sync_context *ctx, struct fs_keystore_entry *ke)
+{
+	char guid_str[GUID_STRLEN];
+	char *efivars_filename;
+	unsigned int buf_len;
+	uint8_t *buf;
+	int fd, rc;
+
+	fd = -1;
+	rc = -1;
+
+	if (ctx->verbose)
+		printf("Inserting key update %s/%s into %s\n",
+				ke->root, ke->name, ke->type->name);
+
+	/* we create a contiguous buffer of attributes & key data, so that
+	 * we write to the efivars file in a single syscall */
+	buf_len = sizeof(sigdb_attrs) + ke->len;
+	buf = talloc_array(ke, uint8_t, buf_len);
+	memcpy(buf, &sigdb_attrs, sizeof(sigdb_attrs));
+	memcpy(buf + sizeof(sigdb_attrs), ke->data, ke->len);
+
+	guid_to_str(&ke->type->guid, guid_str);
+
+	efivars_filename = talloc_asprintf(ke, "%s/%s-%s", ctx->efivars_dir,
+						ke->type->name, guid_str);
+
+	fd = open(efivars_filename, O_WRONLY | O_CREAT, 0600);
+	if (fd < 0) {
+		fprintf(stderr,	"Can't create key file %s: %s\n",
+				efivars_filename, strerror(errno));
+		goto out;
+	}
+
+	rc = write(fd, buf, buf_len);
+	if (rc <= 0) {
+		fprintf(stderr, "Error writing key update: %s\n",
+				strerror(errno));
+		goto out;
+	}
+
+	if (rc != (int)buf_len) {
+		fprintf(stderr, "Partial write during key update: "
+				"wrote %d bytes, expecting %d\n",
+				rc, buf_len);
+		goto out;
+	}
+
+	rc = 0;
+
+out:
+	if (fd >= 0)
+		close(fd);
+	talloc_free(efivars_filename);
+	talloc_free(buf);
+	if (rc)
+		fprintf(stderr, "Error syncing keystore file %s/%s\n",
+				ke->root, ke->name);
+	return rc;
+}
+
+static int insert_new_keys(struct sync_context *ctx)
+{
+	struct fs_keystore_entry *ke;
+	int rc = 0;
+
+	list_for_each(&ctx->new_keys, ke, new_list) {
+		if (insert_key(ctx, ke))
+			rc = -1;
+	}
+
+	return rc;
+}
+
 static void init_key_database(struct sync_context *ctx,
 		struct key_database **kdb_p,
 		const struct key_database_type *type)
@@ -726,6 +810,7 @@ static struct option options[] = {
 	{ "version", no_argument, NULL, 'V' },
 	{ "efivars-path", required_argument, NULL, 'e' },
 	{ "verbose", no_argument, NULL, 'v' },
+	{ "dry-run", no_argument, NULL, 'n' },
 	{ "no-default-keystores", no_argument, NULL, 'd' },
 	{ "keystore", required_argument, NULL, 'k' },
 	{ NULL, 0, NULL, 0 },
@@ -740,6 +825,7 @@ static void usage(void)
 		"\t--efivars-path <dir>  Path to efivars mountpoint\n"
 		"\t                       (or regular directory for testing)\n"
 		"\t--verbose             Print verbose progress information\n"
+		"\t--dry-run             Don't update firmware key databases\n"
 		"\t--keystore <dir>      Read keys from <dir>/{db,dbx,KEK}/*\n"
 		"\t                       (can be specified multiple times,\n"
 		"\t                       first dir takes precedence)\n"
@@ -790,6 +876,9 @@ int main(int argc, char **argv)
 			break;
 		case 'v':
 			ctx->verbose = true;
+			break;
+		case 'n':
+			ctx->dry_run = true;
 			break;
 		case 'V':
 			version();
@@ -842,6 +931,9 @@ int main(int argc, char **argv)
 
 	if (ctx->verbose)
 		print_new_keys(ctx);
+
+	if (!ctx->dry_run)
+		insert_new_keys(ctx);
 
 	return EXIT_SUCCESS;
 }
