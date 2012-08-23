@@ -87,15 +87,14 @@ struct attr {
 	int		value;
 };
 
+#define EFI_VAR_ATTR(n) { #n, EFI_VARIABLE_ ## n }
 static struct attr attrs[] = {
-	{ "NON_VOLATILE",				0x0001 },
-	{ "BOOTSERVICE_ACCESS",				0x0002 },
-	{ "RUNTIME_ACCESS",				0x0004 },
-	{ "TIME_BASED_AUTHENTICATED_WRITE_ACCESS",	0x0020 },
-	{ "APPEND_WRITE",				0x0040 },
+	EFI_VAR_ATTR(NON_VOLATILE),
+	EFI_VAR_ATTR(BOOTSERVICE_ACCESS),
+	EFI_VAR_ATTR(RUNTIME_ACCESS),
+	EFI_VAR_ATTR(TIME_BASED_AUTHENTICATED_WRITE_ACCESS),
+	EFI_VAR_ATTR(APPEND_WRITE),
 };
-
-#define EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS	0x0020
 
 static uint32_t attr_invalid = 0xffffffffu;
 static const char *attr_prefix = "EFI_VARIABLE_";
