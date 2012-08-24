@@ -33,7 +33,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/stat.h>
+#include <string.h>
 #include <sys/stat.h>
 
 #include <openssl/bio.h>
@@ -44,6 +44,8 @@
 #include <ccan/read_write_all/read_write_all.h>
 
 #include "fileio.h"
+
+#define FLAG_NOERROR	(1<<0)
 
 EVP_PKEY *fileio_read_pkey(const char *filename)
 {
@@ -86,8 +88,8 @@ out:
 	return cert;
 }
 
-int fileio_read_file(void *ctx, const char *filename,
-		 uint8_t **out_buf, size_t *out_len)
+static int __fileio_read_file(void *ctx, const char *filename,
+		 uint8_t **out_buf, size_t *out_len, int flags)
 {
 	struct stat statbuf;
 	uint8_t *buf;
@@ -97,29 +99,21 @@ int fileio_read_file(void *ctx, const char *filename,
 	rc = -1;
 
 	fd = open(filename, O_RDONLY);
-	if (fd < 0) {
-		perror("open");
+	if (fd < 0)
 		goto out;
-	}
 
 	rc = fstat(fd, &statbuf);
-	if (rc) {
-		perror("fstat");
+	if (rc)
 		goto out;
-	}
 
 	len = statbuf.st_size;
 
 	buf = talloc_array(ctx, uint8_t, len);
-	if (!buf) {
-		perror("talloc");
+	if (!buf)
 		goto out;
-	}
 
-	if (!read_all(fd, buf, len)) {
-		perror("read_all");
+	if (!read_all(fd, buf, len))
 		goto out;
-	}
 
 	rc = 0;
 
@@ -127,13 +121,28 @@ out:
 	if (fd >= 0)
 		close(fd);
 	if (rc) {
-		fprintf(stderr, "Error reading file %s\n", filename);
+		if (!(flags & FLAG_NOERROR))
+			fprintf(stderr, "Error reading file %s: %s\n",
+					filename, strerror(errno));
 	} else {
 		*out_buf = buf;
 		*out_len = len;
 	}
 	return rc;
 
+}
+
+int fileio_read_file(void *ctx, const char *filename,
+		 uint8_t **out_buf, size_t *out_len)
+{
+	return __fileio_read_file(ctx, filename, out_buf, out_len, 0);
+}
+
+int fileio_read_file_noerror(void *ctx, const char *filename,
+		 uint8_t **out_buf, size_t *out_len)
+{
+	return __fileio_read_file(ctx, filename, out_buf, out_len,
+			FLAG_NOERROR);
 }
 
 int fileio_write_file(const char *filename, uint8_t *buf, size_t len)
