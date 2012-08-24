@@ -59,7 +59,6 @@
 
 static const char *toolname = "sbvarsign";
 
-
 struct varsign_context {
 	const char			*infilename;
 	const char			*outfilename;
@@ -379,6 +378,17 @@ err:
 
 }
 
+static void set_default_guid(struct varsign_context *ctx, const char *varname)
+{
+	EFI_GUID secdb_guid = EFI_IMAGE_SECURITY_DATABASE_GUID;
+	EFI_GUID global_guid = EFI_GLOBAL_VARIABLE;
+
+	if (!strcmp(varname, "db") || !strcmp(varname, "dbx"))
+		ctx->var_guid = secdb_guid;
+	else
+		ctx->var_guid = global_guid;
+}
+
 static struct option options[] = {
 	{ "output", required_argument, NULL, 'o' },
 	{ "guid", required_argument, NULL, 'g' },
@@ -405,7 +415,9 @@ void usage(void)
 		"\t--cert <certfile>  certificate (x509 certificate)\n"
 		"\t--include-attrs  include attrs at beginning of output file\n"
 		"\t--guid <GUID>    EFI GUID for the variable. If omitted,\n"
-		"\t                  EFI_GLOBAL_VARIABLE will be used\n"
+		"\t                  EFI_IMAGE_SECURITY_DATABASE or\n"
+		"\t                  EFI_GLOBAL_VARIABLE (depending on\n"
+		"\t                  <var-name>) will be used.\n"
 		"\t--attr <attrs>   variable attributes. One or more of:\n",
 		toolname);
 
@@ -426,8 +438,8 @@ static void version(void)
 
 int main(int argc, char **argv)
 {
+	const char *guid_str, *attr_str, *varname;
 	const char *keyfilename, *certfilename;
-	const char *guid_str, *attr_str;
 	struct varsign_context *ctx;
 	bool include_attrs;
 	int c;
@@ -498,7 +510,8 @@ int main(int argc, char **argv)
 	ERR_load_crypto_strings();
 
 	/* set up the variable signing context */
-	set_varname(ctx, argv[optind]);
+	varname = argv[optind];
+	set_varname(ctx, varname);
 	ctx->infilename = argv[optind+1];
 
 	if (!ctx->outfilename)
@@ -518,7 +531,7 @@ int main(int argc, char **argv)
 			return EXIT_FAILURE;
 		}
 	} else {
-		ctx->var_guid = default_guid;
+		set_default_guid(ctx, varname);
 	}
 
 	if (fileio_read_file(ctx, ctx->infilename, &ctx->data, &ctx->data_len))
