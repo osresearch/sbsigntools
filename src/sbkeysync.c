@@ -76,9 +76,17 @@ struct key_database_type {
 };
 
 struct key_database_type keydb_types[] = {
+	{ "PK",  EFI_GLOBAL_VARIABLE },
 	{ "KEK", EFI_GLOBAL_VARIABLE },
 	{ "db",  EFI_IMAGE_SECURITY_DATABASE_GUID },
 	{ "dbx", EFI_IMAGE_SECURITY_DATABASE_GUID },
+};
+
+enum keydb_type {
+	KEYDB_PK = 0,
+	KEYDB_KEK = 1,
+	KEYDB_DB = 2,
+	KEYDB_DBX = 3,
 };
 
 static const char *default_keystore_dirs[] = {
@@ -113,6 +121,7 @@ struct key_database {
 };
 
 struct keyset {
+	struct key_database	pk;
 	struct key_database	kek;
 	struct key_database	db;
 	struct key_database	dbx;
@@ -142,6 +151,7 @@ struct sync_context {
 	struct list_head	new_keys;
 	bool			verbose;
 	bool			dry_run;
+	bool			set_pk;
 };
 
 
@@ -468,10 +478,12 @@ static int read_filesystem_keydb(struct sync_context *ctx,
 
 static int read_keysets(struct sync_context *ctx)
 {
+	read_firmware_keydb(ctx, &ctx->firmware_keys->pk);
 	read_firmware_keydb(ctx, &ctx->firmware_keys->kek);
 	read_firmware_keydb(ctx, &ctx->firmware_keys->db);
 	read_firmware_keydb(ctx, &ctx->firmware_keys->dbx);
 
+	read_filesystem_keydb(ctx, &ctx->filesystem_keys->pk);
 	read_filesystem_keydb(ctx, &ctx->filesystem_keys->kek);
 	read_filesystem_keydb(ctx, &ctx->filesystem_keys->db);
 	read_filesystem_keydb(ctx, &ctx->filesystem_keys->dbx);
@@ -479,10 +491,21 @@ static int read_keysets(struct sync_context *ctx)
 	return 0;
 }
 
+static int check_pk(struct sync_context *ctx)
+{
+	struct key *key;
+	int i = 0;
+
+	list_for_each(&ctx->filesystem_keys->pk.keys, key, list)
+		i++;
+
+	return (i <= 1) ? 0 : 1;
+}
+
 static void print_keyset(struct keyset *keyset, const char *name)
 {
 	struct key_database *kdbs[] =
-		{ &keyset->kek, &keyset->db, &keyset->dbx };
+		{ &keyset->pk, &keyset->kek, &keyset->db, &keyset->dbx };
 	struct key *key;
 	unsigned int i;
 
@@ -636,6 +659,7 @@ static int find_new_keys(struct sync_context *ctx)
 	struct {
 		struct key_database *fs_kdb, *fw_kdb;
 	} kdbs[] = {
+		{ &ctx->filesystem_keys->pk,  &ctx->firmware_keys->pk },
 		{ &ctx->filesystem_keys->kek, &ctx->firmware_keys->kek },
 		{ &ctx->filesystem_keys->db,  &ctx->firmware_keys->db },
 		{ &ctx->filesystem_keys->dbx, &ctx->firmware_keys->dbx },
@@ -684,7 +708,7 @@ static void print_new_keys(struct sync_context *ctx)
 {
 	struct fs_keystore_entry *ke;
 
-	printf("New keys to be added:\n");
+	printf("New keys in filesystem:\n");
 
 	list_for_each(&ctx->new_keys, ke, new_list)
 		printf(" %s/%s\n", ke->root, ke->name);
@@ -753,13 +777,38 @@ out:
 
 static int insert_new_keys(struct sync_context *ctx)
 {
-	struct fs_keystore_entry *ke;
-	int rc = 0;
+	struct fs_keystore_entry *ke, *ke_pk;
+	int pks, rc;
+
+	rc = 0;
+	pks = 0;
+	ke_pk = NULL;
 
 	list_for_each(&ctx->new_keys, ke, new_list) {
+
+		/* we handle PK last */
+		if (ke->type == &keydb_types[KEYDB_PK]) {
+			ke_pk = ke;
+			pks++;
+			continue;
+		}
+
 		if (insert_key(ctx, ke))
 			rc = -1;
 	}
+
+	if (rc)
+		return rc;
+
+	if (pks == 0 || !ctx->set_pk)
+		return 0;
+
+	if (pks > 1) {
+		fprintf(stderr, "Skipping PK update due to mutiple PKs\n");
+		return -1;
+	}
+
+	rc = insert_key(ctx, ke_pk);
 
 	return rc;
 }
@@ -770,14 +819,17 @@ static struct keyset *init_keyset(struct sync_context *ctx)
 
 	keyset = talloc(ctx, struct keyset);
 
+	list_head_init(&keyset->pk.keys);
+	keyset->pk.type = &keydb_types[KEYDB_PK];
+
 	list_head_init(&keyset->kek.keys);
-	keyset->kek.type = &keydb_types[0];
+	keyset->kek.type = &keydb_types[KEYDB_KEK];
 
 	list_head_init(&keyset->db.keys);
-	keyset->db.type = &keydb_types[1];
+	keyset->db.type = &keydb_types[KEYDB_DB];
 
 	list_head_init(&keyset->dbx.keys);
-	keyset->dbx.type = &keydb_types[2];
+	keyset->dbx.type = &keydb_types[KEYDB_DBX];
 
 	return keyset;
 }
@@ -788,6 +840,7 @@ static struct option options[] = {
 	{ "efivars-path", required_argument, NULL, 'e' },
 	{ "verbose", no_argument, NULL, 'v' },
 	{ "dry-run", no_argument, NULL, 'n' },
+	{ "pk", no_argument, NULL, 'p' },
 	{ "no-default-keystores", no_argument, NULL, 'd' },
 	{ "keystore", required_argument, NULL, 'k' },
 	{ NULL, 0, NULL, 0 },
@@ -803,6 +856,7 @@ static void usage(void)
 		"\t                       (or regular directory for testing)\n"
 		"\t--verbose             Print verbose progress information\n"
 		"\t--dry-run             Don't update firmware key databases\n"
+		"\t--pk                  Set PK\n"
 		"\t--keystore <dir>      Read keys from <dir>/{db,dbx,KEK}/*\n"
 		"\t                       (can be specified multiple times,\n"
 		"\t                       first dir takes precedence)\n"
@@ -837,7 +891,7 @@ int main(int argc, char **argv)
 
 	for (;;) {
 		int idx, c;
-		c = getopt_long(argc, argv, "e:dkvhV", options, &idx);
+		c = getopt_long(argc, argv, "e:dpkvhV", options, &idx);
 		if (c == -1)
 			break;
 
@@ -850,6 +904,9 @@ int main(int argc, char **argv)
 			break;
 		case 'k':
 			add_keystore_dir(ctx, optarg);
+			break;
+		case 'p':
+			ctx->set_pk = true;
 			break;
 		case 'v':
 			ctx->verbose = true;
@@ -904,6 +961,9 @@ int main(int argc, char **argv)
 		print_keyset(ctx->firmware_keys, "firmware");
 		print_keyset(ctx->filesystem_keys, "filesystem");
 	}
+
+	if (check_pk(ctx))
+		fprintf(stderr, "WARNING: multiple PKs found in filesystem\n");
 
 	find_new_keys(ctx);
 
