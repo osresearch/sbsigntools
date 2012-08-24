@@ -280,8 +280,8 @@ static int sigdb_iterate(void *db_data, size_t len,
 			i + sizeof(*siglist) <= len &&
 			i + siglist->SignatureListSize > i &&
 			i + siglist->SignatureListSize <= len && !rc;
-			siglist = db_data + i,
-			i += siglist->SignatureListSize) {
+			i += siglist->SignatureListSize,
+			siglist = db_data + i) {
 
 		/* ensure that the header & sig sizes are sensible */
 		if (siglist->SignatureHeaderSize > siglist->SignatureListSize)
