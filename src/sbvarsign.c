@@ -246,7 +246,7 @@ static int add_auth_descriptor(struct varsign_context *ctx)
 	BIO_write(data_bio, &ctx->var_guid, sizeof(ctx->var_guid));
 	BIO_write(data_bio, &ctx->var_attrs, sizeof(ctx->var_attrs));
 	BIO_write(data_bio, &timestamp, sizeof(timestamp));
-	BIO_write(data_bio, &ctx->data, ctx->data_len);
+	BIO_write(data_bio, ctx->data, ctx->data_len);
 
 	md = EVP_get_digestbyname("SHA256");
 
