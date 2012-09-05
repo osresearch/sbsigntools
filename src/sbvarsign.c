@@ -168,15 +168,13 @@ static int set_varname(struct varsign_context *ctx, const char *str)
 
 	len = strlen(str);
 
-	wstr = talloc_array(ctx, CHAR16, len + 1);
+	wstr = talloc_array(ctx, CHAR16, len);
 
 	for (i = 0; i < len; i++)
 		wstr[i] = str[i];
 
-	wstr[i] = '\0';
-
 	ctx->var_name = wstr;
-	ctx->var_name_bytes = i * sizeof(CHAR16);
+	ctx->var_name_bytes = len * sizeof(CHAR16);
 
 	return 0;
 }
