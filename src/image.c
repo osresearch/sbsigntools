@@ -330,6 +330,12 @@ static int image_find_regions(struct image *image)
 					image->scnhdr[i].s_name, 8);
 		bytes += regions[i + 3].size;
 
+		if (file_offset + regions[i+3].size > image->size) {
+			fprintf(stderr, "warning: file-aligned section %s "
+					"extends beyond end of file\n",
+					regions[i+3].name);
+		}
+
 		if (regions[i+2].data + regions[i+2].size
 				!= regions[i+3].data) {
 			fprintf(stderr, "warning: gap in section table:\n");
@@ -356,7 +362,7 @@ static int image_find_regions(struct image *image)
 	qsort(image->checksum_regions, image->n_checksum_regions,
 			sizeof(struct region), cmp_regions);
 
-	if (bytes + image->cert_table_size != image->size) {
+	if (bytes + image->cert_table_size < image->size) {
 		int n = image->n_checksum_regions++;
 		struct region *r;
 
@@ -372,6 +378,9 @@ static int image_find_regions(struct image *image)
 		fprintf(stderr, "warning: data remaining[%zd vs %zd]: gaps "
 				"between PE/COFF sections?\n",
 				bytes + image->cert_table_size, image->size);
+	} else if (bytes + image->cert_table_size > image->size) {
+		fprintf(stderr, "warning: checksum areas are greater than "
+				"image size. Invalid section table?\n");
 	}
 
 	/* record the size of non-signature data */
