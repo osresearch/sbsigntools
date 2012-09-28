@@ -85,45 +85,47 @@ static uint16_t __pehdr_u16(char field[])
  *   - data_dir
  *   - checksum
  *
- *  These functions require image->aouthdr to be set by the caller.
+ *  These functions require image->opthdr to be set by the caller.
  */
 static int image_pecoff_parse_32(struct image *image)
 {
-	if (image->aouthdr.aout_32->standard.magic[0] != 0x0b ||
-			image->aouthdr.aout_32->standard.magic[1] != 0x01) {
+	if (image->opthdr.opt_32->standard.magic[0] != 0x0b ||
+			image->opthdr.opt_32->standard.magic[1] != 0x01) {
 		fprintf(stderr, "Invalid a.out machine type\n");
 		return -1;
 	}
 
-	image->aouthdr_size = sizeof(*image->aouthdr.aout_32);
+	image->opthdr_min_size = sizeof(*image->opthdr.opt_32) -
+				sizeof(image->opthdr.opt_32->DataDirectory);
 
 	image->file_alignment =
-		pehdr_u32(image->aouthdr.aout_32->FileAlignment);
+		pehdr_u32(image->opthdr.opt_32->FileAlignment);
 	image->header_size =
-		pehdr_u32(image->aouthdr.aout_32->SizeOfHeaders);
+		pehdr_u32(image->opthdr.opt_32->SizeOfHeaders);
 
-	image->data_dir = (void *)image->aouthdr.aout_32->DataDirectory;
-	image->checksum = (uint32_t *)image->aouthdr.aout_32->CheckSum;
+	image->data_dir = (void *)image->opthdr.opt_32->DataDirectory;
+	image->checksum = (uint32_t *)image->opthdr.opt_32->CheckSum;
 	return 0;
 }
 
 static int image_pecoff_parse_64(struct image *image)
 {
-	if (image->aouthdr.aout_64->standard.magic[0] != 0x0b ||
-			image->aouthdr.aout_64->standard.magic[1] != 0x02) {
+	if (image->opthdr.opt_64->standard.magic[0] != 0x0b ||
+			image->opthdr.opt_64->standard.magic[1] != 0x02) {
 		fprintf(stderr, "Invalid a.out machine type\n");
 		return -1;
 	}
 
-	image->aouthdr_size = sizeof(*image->aouthdr.aout_64);
+	image->opthdr_min_size = sizeof(*image->opthdr.opt_64) -
+				sizeof(image->opthdr.opt_64->DataDirectory);
 
 	image->file_alignment =
-		pehdr_u32(image->aouthdr.aout_64->FileAlignment);
+		pehdr_u32(image->opthdr.opt_64->FileAlignment);
 	image->header_size =
-		pehdr_u32(image->aouthdr.aout_64->SizeOfHeaders);
+		pehdr_u32(image->opthdr.opt_64->SizeOfHeaders);
 
-	image->data_dir = (void *)image->aouthdr.aout_64->DataDirectory;
-	image->checksum = (uint32_t *)image->aouthdr.aout_64->CheckSum;
+	image->data_dir = (void *)image->opthdr.opt_64->DataDirectory;
+	image->checksum = (uint32_t *)image->opthdr.opt_64->CheckSum;
 	return 0;
 }
 
@@ -132,10 +134,10 @@ static int image_pecoff_parse(struct image *image)
 	struct cert_table_header *cert_table;
 	char nt_sig[] = {'P', 'E', 0, 0};
 	size_t size = image->size;
+	int rc, cert_table_offset;
 	void *buf = image->buf;
 	uint16_t magic;
 	uint32_t addr;
-	int rc;
 
 	/* sanity checks */
 	if (size < sizeof(*image->doshdr)) {
@@ -170,7 +172,7 @@ static int image_pecoff_parse(struct image *image)
 	}
 
 	/* a.out header directly follows PE header */
-	image->aouthdr.addr = image->pehdr + 1;
+	image->opthdr.addr = image->pehdr + 1;
 	magic = pehdr_u16(image->pehdr->f_magic);
 
 	if (magic == IMAGE_FILE_MACHINE_AMD64) {
@@ -189,16 +191,26 @@ static int image_pecoff_parse(struct image *image)
 		return -1;
 	}
 
-	/* we have the data_dir now, from parsing the a.out header */
-	image->data_dir_sigtable = &image->data_dir[DATA_DIR_CERT_TABLE];
+	/* the optional header has a variable size, as the data directory
+	 * has a variable number of entries. Ensure that the we have enough
+	 * space to include the security directory entry */
+	image->opthdr_size = pehdr_u16(image->pehdr->f_opthdr);
+	cert_table_offset = sizeof(*image->data_dir) *
+				(DATA_DIR_CERT_TABLE + 1);
 
-	if (pehdr_u16(image->pehdr->f_opthdr) != image->aouthdr_size) {
-		fprintf(stderr, "Invalid a.out header size\n");
+	if (image->opthdr_size < image->opthdr_min_size + cert_table_offset) {
+		fprintf(stderr, "PE opt header too small (%d bytes) to contain "
+				"a suitable data directory (need %d bytes)\n",
+				image->opthdr_size,
+				image->opthdr_min_size + cert_table_offset);
 		return -1;
 	}
 
+
+	image->data_dir_sigtable = &image->data_dir[DATA_DIR_CERT_TABLE];
+
 	if (image->size < sizeof(*image->doshdr) + sizeof(*image->pehdr)
-			+ image->aouthdr_size) {
+			+ image->opthdr_size) {
 		fprintf(stderr, "file is too small for a.out header\n");
 		return -1;
 	}
@@ -222,7 +234,7 @@ static int image_pecoff_parse(struct image *image)
 	}
 
 	image->sections = pehdr_u16(image->pehdr->f_nscns);
-	image->scnhdr = image->aouthdr.addr + image->aouthdr_size;
+	image->scnhdr = image->opthdr.addr + image->opthdr_size;
 
 	return 0;
 }

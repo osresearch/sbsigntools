@@ -58,11 +58,15 @@ struct image {
 	struct external_PEI_DOS_hdr *doshdr;
 	struct external_PEI_IMAGE_hdr *pehdr;
 	union	{
-		PEPAOUTHDR	*aout_64;
-		PEAOUTHDR	*aout_32;
+		PEPAOUTHDR	*opt_64;
+		PEAOUTHDR	*opt_32;
 		void		*addr;
-	} aouthdr;
-	unsigned int	 aouthdr_size;
+	} opthdr;
+	/* size of a minimal opthdr for this machine, without data
+	 * directories */
+	unsigned int	opthdr_min_size;
+	/* size of the opthdr as specified by the image */
+	unsigned int	opthdr_size;
 	struct data_dir_entry *data_dir;
 	struct data_dir_entry *data_dir_sigtable;
 	struct external_scnhdr *scnhdr;
