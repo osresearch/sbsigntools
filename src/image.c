@@ -493,7 +493,7 @@ int image_write(struct image *image, const char *filename)
 		/* pad to sizeof(pad)-byte boundary */
 		padlen = align_up(len, sizeof(pad)) - len;
 
-		image->data_dir_sigtable->addr = image->size;
+		image->data_dir_sigtable->addr = image->data_size;
 		image->data_dir_sigtable->size = len + padlen;
 	} else {
 		image->data_dir_sigtable->addr = 0;
