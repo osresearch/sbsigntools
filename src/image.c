@@ -405,6 +405,7 @@ struct image *image_load(const char *filename)
 	if (rc)
 		goto err;
 
+reparse:
 	rc = image_pecoff_parse(image);
 	if (rc)
 		goto err;
@@ -412,6 +413,27 @@ struct image *image_load(const char *filename)
 	rc = image_find_regions(image);
 	if (rc)
 		goto err;
+
+	/* Some images may have incorrectly aligned sections, which get rounded
+	 * up to a size that is larger that the image itself (and the buffer
+	 * that we've allocated). We would have generated a warning about this,
+	 * but we can improve our chances that the verification hash will
+	 * succeed by padding the image out to the aligned size, and including
+	 * the pad in the signed data.
+	 *
+	 * In this case, do a realloc, but that may peturb the addresses that
+	 * we've calculated during the pecoff parsing, so we need to redo that
+	 * too.
+	 */
+	if (image->data_size > image->size) {
+		image->buf = talloc_realloc(image, image->buf, uint8_t,
+				image->data_size);
+		memset(image->buf + image->size, 0,
+				image->data_size - image->size);
+		image->size = image->data_size;
+
+		goto reparse;
+	}
 
 	return image;
 err:
