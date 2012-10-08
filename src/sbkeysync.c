@@ -55,7 +55,7 @@
 #include "fileio.h"
 #include "efivars.h"
 
-#define EFIVARS_MOUNTPOINT	"/sys/firmware/efi/vars"
+#define EFIVARS_MOUNTPOINT	"/sys/firmware/efi/efivars"
 #define EFIVARS_FSTYPE		0x6165676C
 
 #define EFI_IMAGE_SECURITY_DATABASE_GUID \

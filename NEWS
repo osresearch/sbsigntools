@@ -1,2 +1,12 @@
+v0.5:
+	sbkeysync's default efivars mountpoint has been moved to
+	/sys/firmware/efi/efivars/. This is to match the proposed Linux kernel
+	patch for efivarfs, which provides this sysfs node for the purpose of
+	mounting efivarfs, and leaving the older ../vars/ interface for legacy
+	applications.
+
+	This default can be overridden using the --efivars-path option to
+	sbkeysync.
+
 v0.1:
 	Initial version
