@@ -56,6 +56,7 @@
 #include <openssl/x509v3.h>
 
 static const char *toolname = "sbverify";
+static const int cert_name_len = 160;
 
 enum verify_status {
 	VERIFY_FAIL = 0,
@@ -66,6 +67,7 @@ static struct option options[] = {
 	{ "cert", required_argument, NULL, 'c' },
 	{ "no-verify", no_argument, NULL, 'n' },
 	{ "detached", required_argument, NULL, 'd' },
+	{ "verbose", no_argument, NULL, 'v' },
 	{ "help", no_argument, NULL, 'h' },
 	{ "version", no_argument, NULL, 'V' },
 	{ NULL, 0, NULL, 0 },
@@ -98,6 +100,61 @@ int load_cert(X509_STORE *certs, const char *filename)
 
 	X509_STORE_add_cert(certs, cert);
 	return 0;
+}
+
+static void print_signature_info(PKCS7 *p7)
+{
+	char subject_name[cert_name_len + 1], issuer_name[cert_name_len + 1];
+	PKCS7_SIGNER_INFO *si;
+	X509 *cert;
+	int i;
+
+	printf("image signature issuers:\n");
+
+	for (i = 0; i < sk_PKCS7_SIGNER_INFO_num(p7->d.sign->signer_info);
+			i++) {
+		si = sk_PKCS7_SIGNER_INFO_value(p7->d.sign->signer_info, i);
+		X509_NAME_oneline(si->issuer_and_serial->issuer,
+				issuer_name, cert_name_len);
+		printf(" - %s\n", issuer_name);
+	}
+
+	printf("image signature certificates:\n");
+
+	for (i = 0; i < sk_X509_num(p7->d.sign->cert); i++) {
+		cert = sk_X509_value(p7->d.sign->cert, i);
+		X509_NAME_oneline(cert->cert_info->subject,
+				subject_name, cert_name_len);
+		X509_NAME_oneline(cert->cert_info->issuer,
+				issuer_name, cert_name_len);
+
+		printf(" - subject: %s\n", subject_name);
+		printf("   issuer:  %s\n", issuer_name);
+	}
+}
+
+static void print_certificate_store_certs(X509_STORE *certs)
+{
+	char subject_name[cert_name_len + 1], issuer_name[cert_name_len + 1];
+	X509_OBJECT *obj;
+	int i;
+
+	printf("certificate store:\n");
+
+	for (i = 0; i < sk_X509_OBJECT_num(certs->objs); i++) {
+		obj = sk_X509_OBJECT_value(certs->objs, i);
+
+		if (obj->type != X509_LU_X509)
+			continue;
+
+		X509_NAME_oneline(obj->data.x509->cert_info->subject,
+				subject_name, cert_name_len);
+		X509_NAME_oneline(obj->data.x509->cert_info->issuer,
+				issuer_name, cert_name_len);
+
+		printf(" - subject: %s\n", subject_name);
+		printf("   issuer:  %s\n", issuer_name);
+	}
 }
 
 static int load_image_signature_data(struct image *image,
@@ -146,12 +203,14 @@ int main(int argc, char **argv)
 	uint8_t *sig_buf;
 	size_t sig_size;
 	struct idc *idc;
+	bool verbose;
 	BIO *idcbio;
 	PKCS7 *p7;
 
 	status = VERIFY_FAIL;
 	certs = X509_STORE_new();
 	verify = 1;
+	verbose = false;
 	detached_sig_filename = NULL;
 
 	OpenSSL_add_all_digests();
@@ -174,6 +233,9 @@ int main(int argc, char **argv)
 			break;
 		case 'n':
 			verify = 0;
+			break;
+		case 'v':
+			verbose = true;
 			break;
 		case 'V':
 			version();
@@ -216,6 +278,11 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Unable to parse signature data\n");
 		ERR_print_errors_fp(stderr);
 		goto out;
+	}
+
+	if (verbose) {
+		print_signature_info(p7);
+		print_certificate_store_certs(certs);
 	}
 
 	idcbio = BIO_new(BIO_s_mem());
