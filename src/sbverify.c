@@ -180,6 +180,16 @@ static int load_detached_signature_data(struct image *image,
 	return fileio_read_file(image, filename, buf, len);
 }
 
+static int cert_in_store(X509 *cert, X509_STORE_CTX *ctx)
+{
+	X509_OBJECT obj;
+
+	obj.type = X509_LU_X509;
+	obj.data.x509 = cert;
+
+	return X509_OBJECT_retrieve_match(ctx->ctx->objs, &obj) != NULL;
+}
+
 static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 {
 	int err = X509_STORE_CTX_get_error(ctx);
@@ -188,6 +198,14 @@ static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 	if (err == X509_V_ERR_INVALID_PURPOSE
 			&& ctx->cert->ex_xkusage == XKU_CODE_SIGN)
 		status = 1;
+
+	/* all certs given with the --cert argument are trusted */
+	else if (err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY ||
+			err == X509_V_ERR_CERT_UNTRUSTED) {
+
+		if (cert_in_store(ctx->current_cert, ctx))
+			status = 1;
+	}
 
 	return status;
 }
