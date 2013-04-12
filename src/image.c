@@ -401,6 +401,7 @@ struct image *image_load(const char *filename)
 		return NULL;
 	}
 
+	memset(image, 0, sizeof(*image));
 	rc = fileio_read_file(image, filename, &image->buf, &image->size);
 	if (rc)
 		goto err;
