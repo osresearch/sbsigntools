@@ -385,7 +385,13 @@ static int image_find_regions(struct image *image)
 
 	/* record the size of non-signature data */
 	r = &image->checksum_regions[image->n_checksum_regions - 1];
-	image->data_size = (r->data - (void *)image->buf) + r->size;
+	/*
+	 * The new Tianocore multisign does a stricter check of the signatures
+	 * in particular, the signature table must start at an aligned offset
+	 * fix this by adding bytes to the end of the text section (which must
+	 * be included in the hash)
+	 */
+	image->data_size = align_up((r->data - (void *)image->buf) + r->size, 8);
 
 	return 0;
 }
