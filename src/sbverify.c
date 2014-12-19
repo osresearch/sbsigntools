@@ -233,10 +233,15 @@ int main(int argc, char **argv)
 
 	OpenSSL_add_all_digests();
 	ERR_load_crypto_strings();
+	/* here we may get highly unlikely failures or we'll get a
+	 * complaint about FIPS signatures (usually becuase the FIPS
+	 * module isn't present).  In either case ignore the errors
+	 * (malloc will cause other failures out lower down */
+	ERR_clear_error();
 
 	for (;;) {
 		int idx;
-		c = getopt_long(argc, argv, "c:d:nVh", options, &idx);
+		c = getopt_long(argc, argv, "c:d:nvVh", options, &idx);
 		if (c == -1)
 			break;
 

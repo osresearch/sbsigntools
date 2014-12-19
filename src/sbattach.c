@@ -218,6 +218,11 @@ int main(int argc, char **argv)
 
 	ERR_load_crypto_strings();
 	OpenSSL_add_all_digests();
+	/* here we may get highly unlikely failures or we'll get a
+	 * complaint about FIPS signatures (usually becuase the FIPS
+	 * module isn't present).  In either case ignore the errors
+	 * (malloc will cause other failures out lower down */
+	ERR_clear_error();
 
 	image = image_load(image_filename);
 	if (!image) {

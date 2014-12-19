@@ -506,6 +506,11 @@ int main(int argc, char **argv)
 	OpenSSL_add_all_digests();
 	OpenSSL_add_all_ciphers();
 	ERR_load_crypto_strings();
+	/* here we may get highly unlikely failures or we'll get a
+	 * complaint about FIPS signatures (usually becuase the FIPS
+	 * module isn't present).  In either case ignore the errors
+	 * (malloc will cause other failures out lower down */
+	ERR_clear_error();
 
 	/* set up the variable signing context */
 	varname = argv[optind];
