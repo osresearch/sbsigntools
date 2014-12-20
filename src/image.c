@@ -129,6 +129,11 @@ static int image_pecoff_parse_64(struct image *image)
 	return 0;
 }
 
+static int align_up(int size, int align)
+{
+	return (size + align - 1) & ~(align - 1);
+}
+
 static int image_pecoff_parse(struct image *image)
 {
 	struct cert_table_header *cert_table;
@@ -224,12 +229,12 @@ static int image_pecoff_parse(struct image *image)
 	image->cert_table = cert_table;
 
 	/* if we have a valid cert table header, populate sigbuf as a shadow
-	 * copy of the cert table */
+	 * copy of the cert tables */
 	if (cert_table && cert_table->revision == CERT_TABLE_REVISION &&
 			cert_table->type == CERT_TABLE_TYPE_PKCS &&
 			cert_table->size < size) {
-		image->sigsize = cert_table->size;
-		image->sigbuf = talloc_memdup(image, cert_table + 1,
+		image->sigsize = image->data_dir_sigtable->size;
+		image->sigbuf = talloc_memdup(image, cert_table,
 				image->sigsize);
 	}
 
@@ -237,11 +242,6 @@ static int image_pecoff_parse(struct image *image)
 	image->scnhdr = image->opthdr.addr + image->opthdr_size;
 
 	return 0;
-}
-
-static int align_up(int size, int align)
-{
-	return (size + align - 1) & ~(align - 1);
 }
 
 static int cmp_regions(const void *p1, const void *p2)
@@ -482,48 +482,106 @@ int image_hash_sha256(struct image *image, uint8_t digest[])
 
 int image_add_signature(struct image *image, void *sig, int size)
 {
-	/* we only support one signature at present */
+	struct cert_table_header *cth;
+	int tot_size = size + sizeof(*cth);
+	int aligned_size = align_up(tot_size, 8);
+	void *start;
+
 	if (image->sigbuf) {
-		fprintf(stderr, "warning: overwriting existing signature\n");
-		talloc_free(image->sigbuf);
+		fprintf(stderr, "Image was already signed; adding additional signature\n");
+		image->sigbuf = talloc_realloc(image, image->sigbuf, uint8_t,
+					       image->sigsize + aligned_size);
+		start = image->sigbuf + image->sigsize;
+		image->sigsize += aligned_size;
+	} else {
+		fprintf(stderr, "Signing Unsigned original image\n");
+		start = image->sigbuf = talloc_array(image, uint8_t, aligned_size);
+		image->sigsize = aligned_size;
 	}
-	image->sigbuf = sig;
-	image->sigsize = size;
+	cth = start;
+	start += sizeof(*cth);
+	memset(cth, 0 , sizeof(*cth));
+	cth->size = tot_size;
+	cth->revision = CERT_TABLE_REVISION;
+	cth->type = CERT_TABLE_TYPE_PKCS;
+	memcpy(start, sig, size);
+	if (aligned_size != tot_size)
+		memset(start + size, 0, aligned_size - tot_size);
+
 	return 0;
 }
 
-void image_remove_signature(struct image *image)
+int image_get_signature(struct image *image, int signum,
+			uint8_t **buf, size_t *size)
 {
-	if (image->sigbuf)
-		talloc_free(image->sigbuf);
-	image->sigbuf = NULL;
-	image->sigsize = 0;
+	struct cert_table_header *header;
+	void *addr = (void *)image->sigbuf;
+	int i;
+
+	if (!image->sigbuf) {
+		fprintf(stderr, "No signature table present\n");
+		return -1;
+	}
+
+	header = addr;
+	for (i = 0; i < signum; i++) {
+		addr += align_up(header->size, 8);
+		header = addr;
+	}
+	if (addr >= ((void *)image->sigbuf +
+		     image->sigsize))
+		return -1;
+
+	*buf = (void *)(header + 1);
+	*size = header->size - sizeof(*header);
+	return 0;
+}
+
+int image_remove_signature(struct image *image, int signum)
+{
+	uint8_t *buf;
+	size_t size, aligned_size;
+	int rc = image_get_signature(image, signum, &buf, &size);
+
+	if (rc)
+		return rc;
+
+	buf -= sizeof(struct cert_table_header);
+	size += sizeof(struct cert_table_header);
+	aligned_size = align_up(size, 8);
+
+	/* is signature at the end? */
+	if (buf + aligned_size >= (uint8_t *)image->sigbuf + image->sigsize) {
+		/* only one signature? */
+		if (image->sigbuf == buf) {
+			talloc_free(image->sigbuf);
+			image->sigbuf = NULL;
+			image->sigsize = 0;
+			return 0;
+		}
+	} else {
+		/* sig is in the middle ... just copy the rest over it */
+		memmove(buf, buf + aligned_size, image->sigsize -
+			((void *)buf - image->sigbuf) - aligned_size);
+	}
+	image->sigsize -= aligned_size;
+	image->sigbuf = talloc_realloc(image, image->sigbuf, uint8_t,
+				       image->sigsize);
+	return 0;
+
 }
 
 int image_write(struct image *image, const char *filename)
 {
-	struct cert_table_header cert_table_header;
-	int fd, rc, len, padlen;
+	int fd, rc;
 	bool is_signed;
-	uint8_t pad[8];
 
 	is_signed = image->sigbuf && image->sigsize;
-	padlen = 0;
 
 	/* optionally update the image to contain signature data */
 	if (is_signed) {
-		cert_table_header.size = image->sigsize +
-						sizeof(cert_table_header);
-		cert_table_header.revision = CERT_TABLE_REVISION;
-		cert_table_header.type = CERT_TABLE_TYPE_PKCS;
-
-		len = sizeof(cert_table_header) + image->sigsize;
-
-		/* pad to sizeof(pad)-byte boundary */
-		padlen = align_up(len, sizeof(pad)) - len;
-
 		image->data_dir_sigtable->addr = image->data_size;
-		image->data_dir_sigtable->size = len + padlen;
+		image->data_dir_sigtable->size = image->sigsize;
 	} else {
 		image->data_dir_sigtable->addr = 0;
 		image->data_dir_sigtable->size = 0;
@@ -541,25 +599,24 @@ int image_write(struct image *image, const char *filename)
 	if (!is_signed)
 		goto out;
 
-	rc = write_all(fd, &cert_table_header, sizeof(cert_table_header));
-	if (!rc)
-		goto out;
-
 	rc = write_all(fd, image->sigbuf, image->sigsize);
 	if (!rc)
 		goto out;
-
-	if (padlen) {
-		memset(pad, 0, sizeof(pad));
-		rc = write_all(fd, pad, padlen);
-	}
 
 out:
 	close(fd);
 	return !rc;
 }
 
-int image_write_detached(struct image *image, const char *filename)
+int image_write_detached(struct image *image, int signum, const char *filename)
 {
-	return fileio_write_file(filename, image->sigbuf, image->sigsize);
+	uint8_t *sig;
+	size_t len;
+	int rc;
+
+	rc = image_get_signature(image, signum, &sig, &len);
+
+	if (rc)
+		return rc;
+	return fileio_write_file(filename, sig, len);
 }

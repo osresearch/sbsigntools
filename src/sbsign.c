@@ -223,9 +223,15 @@ int main(int argc, char **argv)
 
 	image_add_signature(ctx->image, buf, sigsize);
 
-	if (ctx->detached)
-		image_write_detached(ctx->image, ctx->outfilename);
-	else
+	if (ctx->detached) {
+		int i;
+		uint8_t *buf;
+		size_t len;
+
+		for (i = 0; !image_get_signature(ctx->image, i, &buf, &len); i++)
+			;
+		image_write_detached(ctx->image, i - 1, ctx->outfilename);
+	} else
 		image_write(ctx->image, ctx->outfilename);
 
 	talloc_free(ctx);

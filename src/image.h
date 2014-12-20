@@ -107,9 +107,11 @@ struct image *image_load(const char *filename);
 
 int image_hash_sha256(struct image *image, uint8_t digest[]);
 int image_add_signature(struct image *, void *sig, int size);
-void image_remove_signature(struct image *image);
+int image_get_signature(struct image *image, int signum,
+			uint8_t **buf, size_t *size);
+int image_remove_signature(struct image *image, int signum);
 int image_write(struct image *image, const char *filename);
-int image_write_detached(struct image *image, const char *filename);
+int image_write_detached(struct image *image, int signum, const char *filename);
 
 #endif /* IMAGE_H */
 

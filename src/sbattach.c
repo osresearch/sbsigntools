@@ -64,6 +64,7 @@ static struct option options[] = {
 	{ "remove", no_argument, NULL, 'r' },
 	{ "help", no_argument, NULL, 'h' },
 	{ "version", no_argument, NULL, 'V' },
+	{ "signum", required_argument, NULL, 's' },
 	{ NULL, 0, NULL, 0 },
 };
 
@@ -80,7 +81,9 @@ static void usage(void)
 		"\t--detach <sigfile>  copy the boot image's signature table\n"
 		"\t                     to <sigfile>\n"
 		"\t--remove            remove the boot image's signature\n"
-		"\t                     table from the original file\n",
+		"\t                     table from the original file\n"
+	        "\t--signum            signature to operate on (defaults to\n"
+	        "\t                     first)\n",
 		toolname, toolname, toolname);
 }
 
@@ -89,9 +92,9 @@ static void version(void)
 	printf("%s %s\n", toolname, VERSION);
 }
 
-static int detach_sig(struct image *image, const char *sig_filename)
+static int detach_sig(struct image *image, int signum, const char *sig_filename)
 {
-	return image_write_detached(image, sig_filename);
+	return image_write_detached(image, signum, sig_filename);
 }
 
 static int attach_sig(struct image *image, const char *image_filename,
@@ -137,11 +140,18 @@ out:
 	return rc;
 }
 
-static int remove_sig(struct image *image, const char *image_filename)
+static int remove_sig(struct image *image, int signum,
+		      const char *image_filename)
 {
 	int rc;
 
-	image_remove_signature(image);
+	rc = image_remove_signature(image, signum);
+
+	if (rc) {
+		fprintf(stderr, "Error, image has no signature at %d\n",
+			signum + 1);
+		return rc;
+	}
 
 	rc = image_write(image, image_filename);
 	if (rc)
@@ -163,7 +173,7 @@ int main(int argc, char **argv)
 	struct image *image;
 	enum action action;
 	bool remove;
-	int c, rc;
+	int c, rc, signum = 0;
 
 	action = ACTION_NONE;
 	sig_filename = NULL;
@@ -171,7 +181,7 @@ int main(int argc, char **argv)
 
 	for (;;) {
 		int idx;
-		c = getopt_long(argc, argv, "a:d:rhV", options, &idx);
+		c = getopt_long(argc, argv, "a:d:s:rhV", options, &idx);
 		if (c == -1)
 			break;
 
@@ -185,6 +195,10 @@ int main(int argc, char **argv)
 			}
 			action = (c == 'a') ? ACTION_ATTACH : ACTION_DETACH;
 			sig_filename = optarg;
+			break;
+		case 's':
+			/* humans count from 1 not zero */
+			signum = atoi(optarg) - 1;
 			break;
 		case 'r':
 			remove = true;
@@ -236,13 +250,13 @@ int main(int argc, char **argv)
 		rc = attach_sig(image, image_filename, sig_filename);
 
 	else if (action == ACTION_DETACH)
-		rc = detach_sig(image, sig_filename);
+		rc = detach_sig(image, signum, sig_filename);
 
 	if (rc)
 		goto out;
 
 	if (remove)
-		rc = remove_sig(image, image_filename);
+		rc = remove_sig(image, signum, image_filename);
 
 out:
 	talloc_free(image);
