@@ -184,6 +184,7 @@ static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 
 	else if (err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY ||
 		 err == X509_V_ERR_CERT_UNTRUSTED ||
+		 err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT ||
 		 err == X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE) {
 		/* all certs given with the --cert argument are trusted */
 
