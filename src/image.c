@@ -145,12 +145,15 @@ static uint16_t csum_update_fold(uint16_t csum, uint16_t x)
 static uint16_t csum_bytes(uint16_t checksum, void *buf, size_t len)
 {
 	unsigned int i;
-	uint16_t *p;
+	uint16_t *p = buf;
 
-	for (i = 0; i < len; i += sizeof(*p)) {
-		p = buf + i;
-		checksum = csum_update_fold(checksum, *p);
+	for (i = 0; i + sizeof(*p) <= len; i += sizeof(*p)) {
+		checksum = csum_update_fold(checksum, *p++);
 	}
+
+	/* if length is odd, add the remaining byte */
+	if (i < len)
+		checksum = csum_update_fold(checksum, *((uint8_t *)p));
 
 	return checksum;
 }
