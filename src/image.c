@@ -237,13 +237,16 @@ static int image_pecoff_parse(struct image *image)
 	image->opthdr.addr = image->pehdr + 1;
 	magic = pehdr_u16(image->pehdr->f_magic);
 
-	if (magic == IMAGE_FILE_MACHINE_AMD64) {
+	switch (magic) {
+	case IMAGE_FILE_MACHINE_AMD64:
+	case IMAGE_FILE_MACHINE_AARCH64:
 		rc = image_pecoff_parse_64(image);
-
-	} else if (magic == IMAGE_FILE_MACHINE_I386) {
+		break;
+	case IMAGE_FILE_MACHINE_I386:
+	case IMAGE_FILE_MACHINE_THUMB:
 		rc = image_pecoff_parse_32(image);
-
-	} else {
+		break;
+	default:
 		fprintf(stderr, "Invalid PE header magic\n");
 		return -1;
 	}
