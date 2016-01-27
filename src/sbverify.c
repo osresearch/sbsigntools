@@ -189,7 +189,10 @@ static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 
 		if (cert_in_store(ctx->current_cert, ctx))
 			status = 1;
-	} else if (err == X509_V_ERR_CERT_HAS_EXPIRED)
+	} else if (err == X509_V_ERR_CERT_HAS_EXPIRED ||
+		   err == X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD ||
+		   err == X509_V_ERR_CERT_NOT_YET_VALID ||
+		   err == X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD)
 		/* UEFI explicitly allows expired certificates */
 		status = 1;
 
