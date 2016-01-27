@@ -325,6 +325,10 @@ int main(int argc, char **argv)
 
 		flags = PKCS7_BINARY;
 
+		/* OpenSSL 1.0.2e no longer allows calling PKCS7_verify with
+		 * both data and content. Empty out the content. */
+		p7->d.sign->contents->d.ptr = NULL;
+
 		X509_STORE_set_verify_cb_func(certs, x509_verify_cb);
 		rc = PKCS7_verify(p7, NULL, certs, idcbio, NULL, flags);
 		if (rc) {
