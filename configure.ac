@@ -64,7 +64,7 @@ PKG_CHECK_MODULES(uuid, uuid,
     AC_MSG_ERROR([libuuid (from the uuid package) is required]))
 
 dnl gnu-efi headers require extra include dirs
-EFI_ARCH=$(uname -m | sed s/i.86/ia32/)
+EFI_ARCH=$(uname -m | sed 's/i.86/ia32/;s/arm.*/arm/')
 EFI_CPPFLAGS="-I/usr/include/efi -I/usr/include/efi/$EFI_ARCH \
  -DEFI_FUNCTION_WRAPPER"
 CPPFLAGS_save="$CPPFLAGS"
