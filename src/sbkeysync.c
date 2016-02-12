@@ -43,8 +43,6 @@
 
 #include <getopt.h>
 
-#include <efi.h>
-
 #include <ccan/list/list.h>
 #include <ccan/array_size/array_size.h>
 #include <ccan/talloc/talloc.h>
