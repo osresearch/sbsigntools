@@ -56,6 +56,14 @@
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define X509_OBJECT_get0_X509(obj) ((obj)->data.x509)
+#define X509_OBJECT_get_type(obj) ((obj)->type)
+#define X509_STORE_CTX_get0_cert(ctx) ((ctx)->cert)
+#define X509_STORE_get0_objects(certs) ((certs)->objs)
+#define X509_get_extended_key_usage(cert) ((cert)->ex_xkusage)
+#endif
+
 static const char *toolname = "sbverify";
 static const int cert_name_len = 160;
 
@@ -124,9 +132,9 @@ static void print_signature_info(PKCS7 *p7)
 
 	for (i = 0; i < sk_X509_num(p7->d.sign->cert); i++) {
 		cert = sk_X509_value(p7->d.sign->cert, i);
-		X509_NAME_oneline(cert->cert_info->subject,
+		X509_NAME_oneline(X509_get_subject_name(cert),
 				subject_name, cert_name_len);
-		X509_NAME_oneline(cert->cert_info->issuer,
+		X509_NAME_oneline(X509_get_issuer_name(cert),
 				issuer_name, cert_name_len);
 
 		printf(" - subject: %s\n", subject_name);
@@ -137,20 +145,26 @@ static void print_signature_info(PKCS7 *p7)
 static void print_certificate_store_certs(X509_STORE *certs)
 {
 	char subject_name[cert_name_len + 1], issuer_name[cert_name_len + 1];
+	STACK_OF(X509_OBJECT) *objs;
 	X509_OBJECT *obj;
+	X509 *cert;
 	int i;
 
 	printf("certificate store:\n");
 
-	for (i = 0; i < sk_X509_OBJECT_num(certs->objs); i++) {
-		obj = sk_X509_OBJECT_value(certs->objs, i);
+	objs = X509_STORE_get0_objects(certs);
 
-		if (obj->type != X509_LU_X509)
+	for (i = 0; i < sk_X509_OBJECT_num(objs); i++) {
+		obj = sk_X509_OBJECT_value(objs, i);
+
+		if (X509_OBJECT_get_type(obj) != X509_LU_X509)
 			continue;
 
-		X509_NAME_oneline(obj->data.x509->cert_info->subject,
+		cert = X509_OBJECT_get0_X509(obj);
+
+		X509_NAME_oneline(X509_get_subject_name(cert),
 				subject_name, cert_name_len);
-		X509_NAME_oneline(obj->data.x509->cert_info->issuer,
+		X509_NAME_oneline(X509_get_issuer_name(cert),
 				issuer_name, cert_name_len);
 
 		printf(" - subject: %s\n", subject_name);
@@ -166,12 +180,21 @@ static int load_detached_signature_data(struct image *image,
 
 static int cert_in_store(X509 *cert, X509_STORE_CTX *ctx)
 {
-	X509_OBJECT obj;
+	STACK_OF(X509_OBJECT) *objs;
+	X509_OBJECT *obj;
+	int i;
 
-	obj.type = X509_LU_X509;
-	obj.data.x509 = cert;
+	objs = X509_STORE_get0_objects(X509_STORE_CTX_get0_store(ctx));
 
-	return X509_OBJECT_retrieve_match(ctx->ctx->objs, &obj) != NULL;
+	for (i = 0; i < sk_X509_OBJECT_num(objs); i++) {
+		obj = sk_X509_OBJECT_value(objs, i);
+
+		if (X509_OBJECT_get_type(obj) == X509_LU_X509 &&
+		    !X509_cmp(X509_OBJECT_get0_X509(obj), cert))
+			return 1;
+	}
+
+	return 0;
 }
 
 static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
@@ -179,8 +202,9 @@ static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 	int err = X509_STORE_CTX_get_error(ctx);
 
 	/* also accept code-signing keys */
-	if (err == X509_V_ERR_INVALID_PURPOSE
-			&& ctx->cert->ex_xkusage == XKU_CODE_SIGN)
+	if (err == X509_V_ERR_INVALID_PURPOSE &&
+			X509_get_extended_key_usage(X509_STORE_CTX_get0_cert(ctx))
+			== XKU_CODE_SIGN)
 		status = 1;
 
 	else if (err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY ||
@@ -189,7 +213,7 @@ static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 		 err == X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE) {
 		/* all certs given with the --cert argument are trusted */
 
-		if (cert_in_store(ctx->current_cert, ctx))
+		if (cert_in_store(X509_STORE_CTX_get_current_cert(ctx), ctx))
 			status = 1;
 	} else if (err == X509_V_ERR_CERT_HAS_EXPIRED ||
 		   err == X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD ||

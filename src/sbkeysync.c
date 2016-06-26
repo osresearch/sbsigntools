@@ -203,16 +203,15 @@ static int x509_key_parse(struct key *key, uint8_t *data, size_t len)
 		return -1;
 
 	/* we use the X509 serial number as the key ID */
-	if (!x509->cert_info || !x509->cert_info->serialNumber)
+	serial = X509_get_serialNumber(x509);
+	if (!serial)
 		goto out;
-
-	serial = x509->cert_info->serialNumber;
 
 	key->id_len = ASN1_STRING_length(serial);
 	key->id = talloc_memdup(key, ASN1_STRING_data(serial), key->id_len);
 
 	key->description = talloc_array(key, char, description_len);
-	X509_NAME_oneline(x509->cert_info->subject,
+	X509_NAME_oneline(X509_get_subject_name(x509),
 			key->description, description_len);
 
 	rc = 0;
