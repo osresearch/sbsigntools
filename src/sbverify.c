@@ -48,6 +48,7 @@
 #include "idc.h"
 #include "fileio.h"
 
+#include <openssl/conf.h>
 #include <openssl/err.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
@@ -224,6 +225,7 @@ int main(int argc, char **argv)
 
 	OpenSSL_add_all_digests();
 	ERR_load_crypto_strings();
+	OPENSSL_config(NULL);
 	/* here we may get highly unlikely failures or we'll get a
 	 * complaint about FIPS signatures (usually becuase the FIPS
 	 * module isn't present).  In either case ignore the errors
