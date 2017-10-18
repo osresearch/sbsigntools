@@ -58,7 +58,8 @@ TESTS = sign-verify.sh \
 	detach-remove.sh
 
 TEST_EXTENSIONS = .sh
-SH_LOG_COMPILER = TEST_ARCHES="$(test_arches)" $(srcdir)/test-wrapper.sh
+AM_TESTS_ENVIRONMENT = TEST_ARCHES='$(test_arches)'; export TEST_ARCHES;
+SH_LOG_COMPILER = $(srcdir)/test-wrapper.sh
 
 EXTRA_DIST = $(test_lds) test.S $(TESTS) $(check_SCRIPTS)
 CLEANFILES = $(test_key) $(test_cert) $(test_images)
