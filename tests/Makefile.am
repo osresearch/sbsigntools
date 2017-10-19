@@ -3,38 +3,33 @@ AUTOMAKE_OPTIONS = parallel-tests
 
 test_key = private-key.rsa
 test_cert = public-cert.pem
-test_arches = x86_64 i386
-test_images = test-x86_64.pecoff test-i386.pecoff
+test_arches = $(EFI_ARCH)
 
-check_PROGRAMS = test-x86_64.pecoff test-i386.pecoff
+check_PROGRAMS = test.pecoff
+
+# override the automake rule to say we build from .elf files
+test.pecoff$(EXEEXT): test.elf
+
+if TEST_BINARY_FORMAT
+EFILDFLAGS = --defsym=EFI_SUBSYSTEM=0x0a
+FORMAT = -O binary
+else
+FORMAT = --target=efi-app-$(EFI_ARCH)
+endif
 check_DATA = $(test_key) $(test_cert)
 check_SCRIPTS = test-wrapper.sh
 
-test_i386_pecoff_SOURCES = test.S
-test_x86_64_pecoff_SOURCES = test.S
-
-test-%.pecoff: test-%.elf
+.elf.pecoff:
+	echo "TEST ARCHES $(test_arches) TEST_COMPAT=$(TEST_COMPAT_FALSE)"
 	$(OBJCOPY) -j .text -j .sdata -j .data \
 		-j .dynamic -j .dynsym  -j .rel \
 		-j .rela -j .reloc \
-		--target=$(test_lds) $^ $@
-	$(STRIP) $@
+		$(FORMAT) $^ $@
 
-test-x86_64.pecoff: test_image_arch = x86-64
-test-x86_64.pecoff: test_lds = efi-app-x86_64
-test-x86_64.pecoff: ASFLAGS += -m64
-test-x86_64.pecoff: LDFLAGS += -m64
-test-i386.pecoff: test_image_arch = i386
-test-i386.pecoff: test_lds = efi-app-ia32
-test-i386.pecoff: ASFLAGS += -m32
-test-i386.pecoff: LDFLAGS += -m32
+.$(OBJEXT).elf:
+	$(LD) $(EFILDFLAGS) -nostdlib -L $(CRTPATH) -shared -Bsymbolic $(CRTPATH)/crt0-efi-$(EFI_ARCH).o -T elf_$(EFI_ARCH)_efi.lds $< -o $@ -lefi -lgnuefi
 
-test-%.elf: LDFLAGS += -nostdlib
-test-%.elf: test-%.$(OBJEXT)
-	$(LINK) $<
-
-test-%.$(OBJEXT): $(srcdir)/test.S
-	$(COMPILE.S) -o $@ $^
+AM_CFLAGS=-fpic -I/usr/include/efi -I/usr/include/efi/$(EFI_ARCH)
 
 $(test_key): Makefile
 	openssl genrsa -out $@ 2048
@@ -52,14 +47,22 @@ TESTS = sign-verify.sh \
 	verify-missing-image.sh \
 	verify-missing-cert.sh \
 	sign-invalidattach-verify.sh \
-	cert-table-header.sh \
 	resign-warning.sh \
-	reattach-warning.sh \
-	detach-remove.sh
+	reattach-warning.sh
+
+if !TEST_BINARY_FORMAT
+##
+# These tests involve objdump which will fail because the format
+# is not recognised. Someone needs to fix arm bfd to add efi
+##
+TESTS +=	cert-table-header.sh \
+		detach-remove.sh
+endif
+
 
 TEST_EXTENSIONS = .sh
 AM_TESTS_ENVIRONMENT = TEST_ARCHES='$(test_arches)'; export TEST_ARCHES;
 SH_LOG_COMPILER = $(srcdir)/test-wrapper.sh
 
-EXTRA_DIST = $(test_lds) test.S $(TESTS) $(check_SCRIPTS)
-CLEANFILES = $(test_key) $(test_cert) $(test_images)
+EXTRA_DIST = test.S $(TESTS) $(check_SCRIPTS)
+CLEANFILES = $(test_key) $(test_cert)

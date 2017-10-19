@@ -24,7 +24,7 @@ function run_test()
 	test="$1"
 
 	# image depends on the test arch
-	image="$datadir/test-$arch.pecoff"
+	image="$datadir/test.pecoff"
 	export image
 
 	# create the temporary directory...
