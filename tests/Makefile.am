@@ -10,27 +10,27 @@ check_PROGRAMS = test-x86_64.pecoff test-i386.pecoff
 check_DATA = $(test_key) $(test_cert)
 check_SCRIPTS = test-wrapper.sh
 
-test_i386_pecoff_SOURCES = test.S test-i386.lds
-test_x86_64_pecoff_SOURCES = test.S test-x86_64.lds
+test_i386_pecoff_SOURCES = test.S
+test_x86_64_pecoff_SOURCES = test.S
 
 test-%.pecoff: test-%.elf
 	$(OBJCOPY) -j .text -j .sdata -j .data \
 		-j .dynamic -j .dynsym  -j .rel \
 		-j .rela -j .reloc \
-		--target=efi-app-$(test_image_arch) $^ $@
+		--target=$(test_lds) $^ $@
 	$(STRIP) $@
 
 test-x86_64.pecoff: test_image_arch = x86-64
-test-x86_64.pecoff: test_lds = $(srcdir)/test-x86_64.lds
+test-x86_64.pecoff: test_lds = efi-app-x86_64
 test-x86_64.pecoff: ASFLAGS += -m64
 test-x86_64.pecoff: LDFLAGS += -m64
 test-i386.pecoff: test_image_arch = i386
-test-i386.pecoff: test_lds = $(srcdir)/test-i386.lds
+test-i386.pecoff: test_lds = efi-app-ia32
 test-i386.pecoff: ASFLAGS += -m32
 test-i386.pecoff: LDFLAGS += -m32
 
-test-%.elf: LDFLAGS = -nostdlib -T $(test_lds)
-test-%.elf: test-%.$(OBJEXT) $(test_lds)
+test-%.elf: LDFLAGS += -nostdlib
+test-%.elf: test-%.$(OBJEXT)
 	$(LINK) $<
 
 test-%.$(OBJEXT): $(srcdir)/test.S
