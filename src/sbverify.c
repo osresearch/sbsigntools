@@ -62,6 +62,9 @@
 #define X509_STORE_CTX_get0_cert(ctx) ((ctx)->cert)
 #define X509_STORE_get0_objects(certs) ((certs)->objs)
 #define X509_get_extended_key_usage(cert) ((cert)->ex_xkusage)
+#if OPENSSL_VERSION_NUMBER < 0x10020000L
+#define X509_STORE_CTX_get0_store(ctx) ((ctx)->ctx)
+#endif
 #endif
 
 static const char *toolname = "sbverify";
