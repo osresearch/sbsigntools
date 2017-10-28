@@ -398,6 +398,7 @@ static struct option options[] = {
 	{ "verbose", no_argument, NULL, 'v' },
 	{ "help", no_argument, NULL, 'h' },
 	{ "version", no_argument, NULL, 'V' },
+	{ "engine", required_argument, NULL, 'e'},
 	{ NULL, 0, NULL, 0 },
 };
 
@@ -409,6 +410,7 @@ void usage(void)
 			"<var-name> <var-data-file>\n"
 		"Sign a blob of data for use in SetVariable().\n\n"
 		"Options:\n"
+		"\t--engine <eng>     use the specified engine to load the key\n"
 		"\t--key <keyfile>    signing key (PEM-encoded RSA "
 						"private key)\n"
 		"\t--cert <certfile>  certificate (x509 certificate)\n"
@@ -437,7 +439,7 @@ static void version(void)
 
 int main(int argc, char **argv)
 {
-	const char *guid_str, *attr_str, *varname;
+	const char *guid_str, *attr_str, *varname, *engine;
 	const char *keyfilename, *certfilename;
 	struct varsign_context *ctx;
 	bool include_attrs;
@@ -447,13 +449,14 @@ int main(int argc, char **argv)
 
 	keyfilename = NULL;
 	certfilename = NULL;
+	engine = NULL;
 	guid_str = NULL;
 	attr_str= NULL;
 	include_attrs = false;
 
 	for (;;) {
 		int idx;
-		c = getopt_long(argc, argv, "o:g:a:k:c:ivVh", options, &idx);
+		c = getopt_long(argc, argv, "o:g:a:k:c:ivVhe:", options, &idx);
 		if (c == -1)
 			break;
 
@@ -485,6 +488,9 @@ int main(int argc, char **argv)
 		case 'h':
 			usage();
 			return EXIT_SUCCESS;
+		case 'e':
+			engine = optarg;
+			break;
 		}
 	}
 
@@ -542,7 +548,10 @@ int main(int argc, char **argv)
 	if (fileio_read_file(ctx, ctx->infilename, &ctx->data, &ctx->data_len))
 		return EXIT_FAILURE;
 
-	ctx->key = fileio_read_pkey(keyfilename);
+	if (engine)
+		ctx->key = fileio_read_engine_key(engine, keyfilename);
+	else
+		ctx->key = fileio_read_pkey(keyfilename);
 	if (!ctx->key)
 		return EXIT_FAILURE;
 

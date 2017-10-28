@@ -74,6 +74,7 @@ static struct option options[] = {
 	{ "verbose", no_argument, NULL, 'v' },
 	{ "help", no_argument, NULL, 'h' },
 	{ "version", no_argument, NULL, 'V' },
+	{ "engine", required_argument, NULL, 'e'},
 	{ NULL, 0, NULL, 0 },
 };
 
@@ -83,6 +84,7 @@ static void usage(void)
 			"<efi-boot-image>\n"
 		"Sign an EFI boot image for use with secure boot.\n\n"
 		"Options:\n"
+		"\t--engine <eng>     use the specified engine to load the key\n"
 		"\t--key <keyfile>    signing key (PEM-encoded RSA "
 						"private key)\n"
 		"\t--cert <certfile>  certificate (x509 certificate)\n"
@@ -112,19 +114,21 @@ static void set_default_outfilename(struct sign_context *ctx)
 
 int main(int argc, char **argv)
 {
-	const char *keyfilename, *certfilename;
+	const char *keyfilename, *certfilename, *engine;
 	struct sign_context *ctx;
 	uint8_t *buf, *tmp;
 	int rc, c, sigsize;
+	EVP_PKEY *pkey;
 
 	ctx = talloc_zero(NULL, struct sign_context);
 
 	keyfilename = NULL;
 	certfilename = NULL;
+	engine = NULL;
 
 	for (;;) {
 		int idx;
-		c = getopt_long(argc, argv, "o:c:k:dvVh", options, &idx);
+		c = getopt_long(argc, argv, "o:c:k:dvVhe:", options, &idx);
 		if (c == -1)
 			break;
 
@@ -150,6 +154,9 @@ int main(int argc, char **argv)
 		case 'h':
 			usage();
 			return EXIT_SUCCESS;
+		case 'e':
+			engine = optarg;
+			break;
 		}
 	}
 
@@ -190,7 +197,10 @@ int main(int argc, char **argv)
 	 * module isn't present).  In either case ignore the errors
 	 * (malloc will cause other failures out lower down */
 	ERR_clear_error();
-	EVP_PKEY *pkey = fileio_read_pkey(keyfilename);
+	if (engine)
+		pkey = fileio_read_engine_key(engine, keyfilename);
+	else
+		pkey = fileio_read_pkey(keyfilename);
 	if (!pkey)
 		return EXIT_FAILURE;
 

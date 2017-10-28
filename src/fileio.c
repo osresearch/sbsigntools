@@ -39,6 +39,7 @@
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
+#include <openssl/engine.h>
 
 #include <ccan/talloc/talloc.h>
 #include <ccan/read_write_all/read_write_all.h>
@@ -46,6 +47,55 @@
 #include "fileio.h"
 
 #define FLAG_NOERROR	(1<<0)
+
+static int ui_read(UI *ui, UI_STRING *uis)
+{
+	char password[128];
+
+	if (UI_get_string_type(uis) != UIT_PROMPT)
+		return 0;
+
+	EVP_read_pw_string(password, sizeof(password), "Enter engine key pass phrase:", 0);
+	UI_set_result(ui, uis, password);
+	return 1;
+}
+
+EVP_PKEY *fileio_read_engine_key(const char *engine, const char *filename)
+{
+	UI_METHOD *ui;
+	ENGINE *e;
+	EVP_PKEY *pkey = NULL;
+
+	ENGINE_load_builtin_engines();
+	e = ENGINE_by_id(engine);
+
+	if (!e) {
+		fprintf(stderr, "Failed to load engine: %s\n", engine);
+		ERR_print_errors_fp(stderr);
+		return NULL;
+	}
+
+	ui = UI_create_method("sbsigntools");
+	if (!ui) {
+		fprintf(stderr, "Failed to create UI method\n");
+		ERR_print_errors_fp(stderr);
+		goto out_free;
+	}
+	UI_method_set_reader(ui, ui_read);
+
+	if (!ENGINE_init(e)) {
+		fprintf(stderr, "Failed to initialize engine %s\n", engine);
+		ERR_print_errors_fp(stderr);
+		goto out_free;
+	}
+
+	pkey = ENGINE_load_private_key(e, filename, ui, NULL);
+	ENGINE_finish(e);
+
+ out_free:
+	ENGINE_free(e);
+	return pkey;
+}
 
 EVP_PKEY *fileio_read_pkey(const char *filename)
 {
