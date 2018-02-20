@@ -70,7 +70,7 @@ AM_CONDITIONAL(TEST_BINARY_FORMAT, [ test "$EFI_ARCH" = "arm" -o "$EFI_ARCH" = "
 ##
 # no consistent view of where gnu-efi should dump the efi stuff, so find it
 ##
-for path in /lib /lib64 /usr/lib /usr/lib64 /usr/lib32 /lib/efi /lib64/efi /usr/lib/efi /usr/lib64/efi; do
+for path in /lib /lib64 /usr/lib /usr/lib64 /usr/lib32 /lib/efi /lib64/efi /usr/lib/efi /usr/lib64/efi /usr/lib/gnuefi /usr/lib64/gnuefi ; do
     if test -e $path/crt0-efi-$EFI_ARCH.o; then
        CRTPATH=$path
     fi

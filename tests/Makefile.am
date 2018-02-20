@@ -27,7 +27,7 @@ check_SCRIPTS = test-wrapper.sh
 		$(FORMAT) $^ $@
 
 .$(OBJEXT).elf:
-	$(LD) $(EFILDFLAGS) -nostdlib -L $(CRTPATH) -shared -Bsymbolic $(CRTPATH)/crt0-efi-$(EFI_ARCH).o -T elf_$(EFI_ARCH)_efi.lds $< -o $@ -lefi -lgnuefi
+	$(LD) $(EFILDFLAGS) -nostdlib -L /usr/lib -L /usr/lib64 -L $(CRTPATH) -shared -Bsymbolic $(CRTPATH)/crt0-efi-$(EFI_ARCH).o -T elf_$(EFI_ARCH)_efi.lds $< -o $@ -lefi -lgnuefi
 
 AM_CFLAGS=-fpic -I/usr/include/efi -I/usr/include/efi/$(EFI_ARCH)
 
