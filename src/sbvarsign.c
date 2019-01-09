@@ -269,7 +269,7 @@ static int add_auth_descriptor(struct varsign_context *ctx)
 		return -1;
 	}
 
-	len = i2d_PKCS7(p7, NULL);
+	len = i2d_PKCS7_SIGNED(p7->d.sign, NULL);
 
 
 	/* set up our auth descriptor */
@@ -281,7 +281,7 @@ static int add_auth_descriptor(struct varsign_context *ctx)
 	auth->AuthInfo.Hdr.wCertificateType = 0x0EF1;
 	auth->AuthInfo.CertType = cert_pkcs7_guid;
 	tmp = auth->AuthInfo.CertData;
-	i2d_PKCS7(p7, &tmp);
+	i2d_PKCS7_SIGNED(p7->d.sign, &tmp);
 
 	ctx->auth_descriptor = auth;
 	ctx->auth_descriptor_len = sizeof(*auth) + len;
