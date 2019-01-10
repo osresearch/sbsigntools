@@ -388,8 +388,7 @@ static int image_find_regions(struct image *image)
 		regions = image->checksum_regions;
 
 		regions[n].data = buf + file_offset;
-		regions[n].size = align_up(file_size,
-					image->file_alignment);
+		regions[n].size = file_size;
 		regions[n].name = talloc_strndup(image->checksum_regions,
 					image->scnhdr[i].s_name, 8);
 		bytes += regions[n].size;
