@@ -212,7 +212,7 @@ static int set_timestamp(EFI_TIME *timestamp)
 	/* copy to our EFI-specific time structure. Other fields (Nanosecond,
 	 * TimeZone, Daylight and Pad) are defined to be zero */
 	memset(timestamp, 0, sizeof(*timestamp));
-	timestamp->Year = tm->tm_year;
+	timestamp->Year = 1900 + tm->tm_year;
 	timestamp->Month = tm->tm_mon;
 	timestamp->Day = tm->tm_mday;
 	timestamp->Hour = tm->tm_hour;
