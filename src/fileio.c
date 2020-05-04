@@ -90,7 +90,7 @@ EVP_PKEY *fileio_read_engine_key(const char *engine, const char *filename)
 	}
 
 	pkey = ENGINE_load_private_key(e, filename, ui, NULL);
-	ENGINE_finish(e);
+	//ENGINE_finish(e);
 
  out_free:
 	ENGINE_free(e);
