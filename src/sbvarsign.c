@@ -332,7 +332,7 @@ int write_signed(struct varsign_context *ctx, int include_attrs)
 		printf("Wrote signed data:\n");
 		if (include_attrs) {
 			i = sizeof(ctx->var_attrs);
-			printf("  [%04zx:%04zx] attrs\n", 0l, i);
+			printf("  [%04lx:%04zx] attrs\n", 0l, i);
 		}
 
 		printf("  [%04zx:%04x] authentication descriptor\n",

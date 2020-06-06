@@ -54,9 +54,11 @@
 #include "fileio.h"
 #include "efivars.h"
 
+static struct statfs statfstype;
+
 #define EFIVARS_MOUNTPOINT	"/sys/firmware/efi/efivars"
-#define PSTORE_FSTYPE		0x6165676C
-#define EFIVARS_FSTYPE		0xde5e81e4
+#define PSTORE_FSTYPE		((typeof(statfstype.f_type))0x6165676C)
+#define EFIVARS_FSTYPE		((typeof(statfstype.f_type))0xde5e81e4)
 
 #define EFI_IMAGE_SECURITY_DATABASE_GUID \
 	{ 0xd719b2cb, 0x3d3a, 0x4596, \
