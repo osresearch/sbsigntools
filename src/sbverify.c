@@ -239,7 +239,7 @@ int main(int argc, char **argv)
 	uint8_t *sig_buf;
 	size_t sig_size;
 	struct idc *idc;
-	bool verbose;
+	int verbose;
 	BIO *idcbio;
 	PKCS7 *p7;
 	int sig_count = 0;
@@ -247,7 +247,7 @@ int main(int argc, char **argv)
 	status = VERIFY_FAIL;
 	certs = X509_STORE_new();
 	list = 0;
-	verbose = false;
+	verbose = 0;
 	detached_sig_filename = NULL;
 
 	OpenSSL_add_all_digests();
@@ -282,7 +282,7 @@ int main(int argc, char **argv)
 			list = 1;
 			break;
 		case 'v':
-			verbose = true;
+			verbose++;
 			break;
 		case 'V':
 			version();
@@ -337,7 +337,8 @@ int main(int argc, char **argv)
 
 		if (verbose || list) {
 			print_signature_info(p7);
-			//print_certificate_store_certs(certs);
+			if (verbose > 1)
+				print_certificate_store_certs(certs);
 		}
 
 		if (list)
