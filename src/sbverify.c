@@ -210,8 +210,7 @@ static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 			== XKU_CODE_SIGN)
 		status = 1;
 
-	else if (err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY ||
-		 err == X509_V_ERR_CERT_UNTRUSTED ||
+	else if (err == X509_V_ERR_CERT_UNTRUSTED ||
 		 err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT ||
 		 err == X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE) {
 		/* all certs given with the --cert argument are trusted */
@@ -221,6 +220,7 @@ static int x509_verify_cb(int status, X509_STORE_CTX *ctx)
 	} else if (err == X509_V_ERR_CERT_HAS_EXPIRED ||
 		   err == X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD ||
 		   err == X509_V_ERR_CERT_NOT_YET_VALID ||
+		   err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY ||
 		   err == X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD)
 		/* UEFI explicitly allows expired certificates */
 		status = 1;
