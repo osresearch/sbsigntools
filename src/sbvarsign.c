@@ -105,7 +105,6 @@ static uint32_t default_attrs = EFI_VARIABLE_NON_VOLATILE |
 static uint32_t attr_invalid = 0xffffffffu;
 static const char *attr_prefix = "EFI_VARIABLE_";
 
-static const EFI_GUID default_guid = EFI_GLOBAL_VARIABLE;
 static const EFI_GUID cert_pkcs7_guid = EFI_CERT_TYPE_PKCS7_GUID;
 
 static void set_default_outfilename(struct varsign_context *ctx)
