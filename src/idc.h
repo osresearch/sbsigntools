@@ -42,5 +42,7 @@ int IDC_set(PKCS7 *p7, PKCS7_SIGNER_INFO *si, struct image *image);
 struct idc *IDC_get(PKCS7 *p7, BIO *bio);
 int IDC_check_hash(struct idc *idc, struct image *image);
 
+const char *sha256_str(const uint8_t *hash);
+
 #endif /* IDC_H */
 

@@ -75,6 +75,7 @@ static struct option options[] = {
 	{ "detached", no_argument, NULL, 'd' },
 	{ "verbose", no_argument, NULL, 'v' },
 	{ "help", no_argument, NULL, 'h' },
+	{ "hash-only", no_argument, NULL, 'H' },
 	{ "version", no_argument, NULL, 'V' },
 	{ "engine", required_argument, NULL, 'e'},
 	{ "addcert", required_argument, NULL, 'a'},
@@ -97,7 +98,8 @@ static void usage(void)
 		"\t--output <file>    write signed data to <file>\n"
 		"\t                    (default <efi-boot-image>.signed,\n"
 		"\t                    or <efi-boot-image>.pk7 for detached\n"
-		"\t                    signatures)\n",
+		"\t                    signatures)\n"
+		"\t--hash-only        Print the PE hash\n",
 		toolname);
 }
 
@@ -155,7 +157,7 @@ int main(int argc, char **argv)
 	const char *keyfilename, *certfilename, *addcertfilename, *engine;
 	struct sign_context *ctx;
 	uint8_t *buf, *tmp;
-	int rc, c, sigsize;
+	int rc, c, sigsize, hash_only = 0;;
 	EVP_PKEY *pkey;
 
 	ctx = talloc_zero(NULL, struct sign_context);
@@ -167,7 +169,7 @@ int main(int argc, char **argv)
 
 	for (;;) {
 		int idx;
-		c = getopt_long(argc, argv, "o:c:k:dvVhe:a:", options, &idx);
+		c = getopt_long(argc, argv, "o:c:k:dvVhe:a:H", options, &idx);
 		if (c == -1)
 			break;
 
@@ -199,6 +201,9 @@ int main(int argc, char **argv)
 		case 'a':
 			addcertfilename = optarg;
 			break;
+		case 'H':
+			hash_only = 1;
+			break;
 		}
 	}
 
@@ -208,6 +213,18 @@ int main(int argc, char **argv)
 	}
 
 	ctx->infilename = argv[optind];
+
+	ctx->image = image_load(ctx->infilename);
+	if (!ctx->image)
+		return EXIT_FAILURE;
+
+	if (hash_only) {
+		unsigned char sha[SHA256_DIGEST_LENGTH];
+		image_hash_sha256(ctx->image, sha);
+		printf("%s\n", sha256_str(sha));
+		return EXIT_SUCCESS;
+	}
+
 	if (!ctx->outfilename)
 		set_default_outfilename(ctx);
 
@@ -223,10 +240,6 @@ int main(int argc, char **argv)
 		usage();
 		return EXIT_FAILURE;
 	}
-
-	ctx->image = image_load(ctx->infilename);
-	if (!ctx->image)
-		return EXIT_FAILURE;
 
 	talloc_steal(ctx, ctx->image);
 
